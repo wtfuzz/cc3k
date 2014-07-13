@@ -1,0 +1,16 @@
+/**
+ * @file cc3k_type.h
+ *
+ * Type declarations
+ */
+
+#ifndef _CC3K_TYPE_H
+#define _CC3K_TYPE_H
+
+typedef enum _cc3k_status_t
+{
+	CC3K_OK,
+	CC3K_ERROR
+} cc3k_status_t;
+
+#endif
