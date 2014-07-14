@@ -20,10 +20,33 @@ typedef enum _cc3k_state_t
 } cc3k_state_t;
 
 /**
+ * @brief Driver configuration
+ *
+ * Contains callback function pointers that the
+ * caller must implement to access the SPI peripheral
+ * and GPIO pins of the host.
+ */
+typedef struct _cc3k_config_t
+{
+  /** @brief Enable/Disable chip with EN pin */
+  void (*enableChip)(int enable);
+  /** @brief Read the CS pin */
+  int (*readChipSelect)(void);
+  /** @brief Enable/Disable Interrupts */
+  void (*enableInterrupt)(int enable);
+  /** @brief Assert/Deassert CS pin */
+  void (*assertChipSelect)(int assert);
+  /** @brief Send SPI data */
+  /** @brief Read SPI data */
+} cc3k_config_t;
+
+/**
  * @brief Driver Context
  */
 typedef struct _cc3k_t
 {
+  cc3k_config_t *config;
+
 	/** @brief Current operational state */
 	cc3k_state_t state;
 
@@ -34,5 +57,7 @@ typedef struct _cc3k_t
 	uint8_t *packet_buffer;
 	uint16_t packet_buffer_length;
 } cc3k_t;
+
+cc3k_status_t cc3k_init(cc3k_t *driver);
 
 #endif
