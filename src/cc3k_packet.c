@@ -19,6 +19,8 @@ cc3k_status_t cc3k_spi_header(cc3k_t *driver, int type, uint16_t payload_length)
   spi_header->length |= LO(payload_length);
 	spi_header->busy = 0;
 
+  driver->packet_tx_buffer_length = payload_length + sizeof(cc3k_spi_header_t);
+
   return CC3K_OK;
 }
 
@@ -36,6 +38,7 @@ cc3k_status_t cc3k_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_
 
   // Keep the last command opcode in the driver context
   driver->command = opcode;
+
 
   return cc3k_spi_header(driver, CC3K_PACKET_TYPE_WRITE, sizeof(cc3k_command_header_t) + argument_length); 
 }

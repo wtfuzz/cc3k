@@ -28,7 +28,6 @@ static inline void _spi_sync(cc3k_t *driver, uint8_t *out, uint8_t *in, uint16_t
 
 static inline void _spi(cc3k_t *driver, uint8_t *out, uint8_t *in, uint16_t length)
 {
-  _assert_cs(driver, 1);
   (*driver->config->spiTransaction)(out, in, length, 1);
 }
 
@@ -42,12 +41,6 @@ static inline void _chip_enable(cc3k_t *driver, int enable)
   (*driver->config->enableChip)(enable);
 }
 
-cc3k_status_t cc3k_command_send(cc3k_t *driver, uint16_t command)
-{
-  
-  return CC3K_OK;
-}
-
 cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
 {
   // Patch source parameter to simple link start command
@@ -59,6 +52,7 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
 
   _int_enable(driver, 0);
 
+  _assert_cs(driver, 0);
   _chip_enable(driver, 0);
   (*config->delayMicroseconds)(100000); 
   _chip_enable(driver, 1);
@@ -67,8 +61,6 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
   _interrupt_poll_wait(driver);
   _assert_cs(driver, 1);
 
-  // Enable interrupts
-  _int_enable(driver, 1);
 
   // The first command sent to the chip is different than the rest, so we will
   // handle it manually here with asynchronous SPI calls.
@@ -76,6 +68,7 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
 
   // Construct the command packet in the transmit buffer
   cc3k_command(driver, CC3K_COMMAND_SIMPLE_LINK_START, (uint8_t *)&patch_source, 1);
+  driver->stats.commands++;
 
   // NOTE Special timing sequence for fist transaction
   // Send the first 4 bytes of the SPI header
@@ -85,6 +78,8 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
   // Send the remaining 6 bytes of the COMMAND_SIMPLE_LINK_START packet
   _spi_sync(driver, driver->packet_tx_buffer+4, driver->packet_rx_buffer + 4, 6);
 
+  // Enable interrupts
+  _int_enable(driver, 1);
   _assert_cs(driver, 0);
 
   // Check the returned data. The first 4 bytes should be 0x02, 0x00, 0xFF, 0x00
@@ -97,26 +92,29 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
     return CC3K_ERROR;
 */
 
-  driver->state = CC3K_STATE_COMMAND;
+  driver->state = CC3K_STATE_SIMPLE_LINK_START;
 
 	return CC3K_OK;	
 }
 
-cc3k_status_t cc3k_start(cc3k_t *driver)
-{
-
-  cc3k_command_send(driver, CC3K_COMMAND_SIMPLE_LINK_START);
-
-  // Send CC3K_COMMAND_SIMPLE_LINK_START
-  // Send CC3K_COMMAND_READ_BUFFER_SIZE
-  
-
-  return CC3K_OK;
-}
 
 static inline void _transition(cc3k_t *driver, cc3k_state_t state)
 {
   driver->state = state;
+}
+
+cc3k_status_t cc3k_read_header(cc3k_t *driver)
+{
+  cc3k_spi_header_t *spi_header;
+  spi_header = (cc3k_spi_header_t *)driver->packet_tx_buffer;
+  spi_header->type = CC3K_PACKET_TYPE_READ;
+  spi_header->length = 0;
+  spi_header->busy = 0;
+
+  _transition(driver, CC3K_STATE_READ_HEADER);
+  _assert_cs(driver, 1);
+  _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, 5);
+  return CC3K_OK;
 }
 
 cc3k_status_t cc3k_spi_done(cc3k_t *driver)
@@ -146,22 +144,29 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver)
       _transition(driver, CC3K_STATE_EVENT);
       _assert_cs(driver, 0);
       break;
-  }
 
+    case CC3K_STATE_COMMAND:
+      // SPI transmission has completed, deassert /CS and wait for
+      // and IRQ indicating the chip has a response
+      _assert_cs(driver, 0);
+      break;
+  }
 
   return CC3K_OK;
 }
 
-cc3k_status_t cc3k_read_header(cc3k_t *driver)
-{
-  cc3k_spi_header_t *spi_header;
-  spi_header = (cc3k_spi_header_t *)driver->packet_tx_buffer;
-  spi_header->type = CC3K_PACKET_TYPE_READ;
-  spi_header->length = 0;
-  spi_header->busy = 0;
 
-  _transition(driver, CC3K_STATE_READ_HEADER);
-  _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, 5);
+cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t args_length)
+{
+  // Populate the transmit buffer with the command
+  cc3k_command(driver, opcode, arg, args_length);
+  driver->stats.commands++;
+
+  // Transition into the command request state, and assert /CS
+  // In this state, the ISR will be called when the chip is ready
+  // to receive the command. The SPI transmissing will kickoff then.
+  _transition(driver, CC3K_STATE_COMMAND_REQUEST);
+  _assert_cs(driver, 1);
   return CC3K_OK;
 }
 
@@ -173,47 +178,134 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
 
   switch(driver->state)
   {
+    case CC3K_STATE_COMMAND_REQUEST:
+      // There is a pending command in the transmit buffer, and the chip has
+      // notified us that it is ready to accept the command.
+      _transition(driver, CC3K_STATE_COMMAND);
+      _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, driver->packet_tx_buffer_length);
+      break;
+    case CC3K_STATE_SIMPLE_LINK_START:
+      cc3k_read_header(driver);
+      break;
     case CC3K_STATE_COMMAND:
       cc3k_read_header(driver);
       break;
-
     case CC3K_STATE_IDLE:
-      // Asynch unsolocited event
-      // Transition to the READING state
-      _transition(driver, CC3K_STATE_READ_HEADER);
-      //_spi_read_header(driver);
-
+      cc3k_read_header(driver);
+      break;
+    case CC3K_STATE_INIT:
+    case CC3K_STATE_READ_HEADER:
+    case CC3K_STATE_READ_PAYLOAD:
+      break;
+    default:
+      driver->stats.unhandled_interrupts++;
+      driver->unhandled_state = driver->state;
+      driver->interrupt_pending = 1;
       break;
   }
 
 	return CC3K_OK;
 }
 
+static cc3k_status_t _process_event(cc3k_t *driver)
+{
+  cc3k_command_header_t *event_header;
+  uint8_t *payload;
+  
+  event_header = (cc3k_command_header_t *)(driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t)); 
+
+  if(event_header->type != CC3K_PAYLOAD_TYPE_EVENT)
+    return CC3K_INVALID;
+
+  payload = driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t) + sizeof(cc3k_command_header_t);
+  cc3k_process_event(driver, event_header->opcode, payload, event_header->argument_length);
+
+  if(event_header->opcode >= 0x4100)
+  {
+    // Async event
+  }
+  else
+  {
+
+    // This event should be a response to the last sent command
+    if(event_header->opcode != driver->command)
+      return CC3K_INVALID;
+
+    switch(event_header->opcode)
+    {
+      case CC3K_COMMAND_SIMPLE_LINK_START:
+        cc3k_send_command(driver, CC3K_COMMAND_READ_BUFFER_SIZE, NULL, 0);
+        break;
+      case CC3K_COMMAND_READ_BUFFER_SIZE:
+        // Get the number of buffers from the response
+        
+        break;
+      default:
+        break;
+    }
+  }
+ 
+  return CC3K_OK; 
+}
 
 cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
 {
   uint32_t dt;
+  cc3k_status_t status;
 
   if(driver->last_time_ms == 0)
+  {
     dt = 0;
+  }
   else
+  {
     dt = time_ms - driver->last_time_ms;
+  }
 
   driver->last_time_ms = time_ms;
+
+  //_int_enable(driver, 0);
 
   switch(driver->state)
   {
     case CC3K_STATE_EVENT:
-      // Process the event in packet_rx_buffer
-
-      // Transition to the idle state
       _transition(driver, CC3K_STATE_IDLE);
+
+      // Process the event in packet_rx_buffer
+      status = _process_event(driver);
+      if(status != CC3K_OK)
+        return status;
+
+      break;
+
+    case CC3K_STATE_IDLE:
+
+      cc3k_send_command(driver, CC3K_COMMAND_IOCTL_STATUSGET, NULL, 0);
+
+#if 0
+      // Check timer
+      if(time_ms - driver->last_update > 1000)
+      {
+        // Get status
+        cc3k_send_command(driver, CC3K_COMMAND_IOCTL_STATUSGET, NULL, 0);
+        driver->last_update = time_ms;
+      }
+#endif
       break;
 
     default:
       // Do nothing
       break;
   }
+
+  // Check if there is a pending interrupt
+  if(driver->interrupt_pending)
+  {
+    cc3k_read_header(driver);
+    driver->interrupt_pending = 0;
+  }
+
+  //_int_enable(driver, 1);
 
   return CC3K_OK;
 }

@@ -20,6 +20,8 @@ extern "C" {
 typedef enum _cc3k_state_t
 {
 	CC3K_STATE_INIT,            // Initial state
+  CC3K_STATE_SIMPLE_LINK_START, // Initial simple link start command issued
+  CC3K_STATE_COMMAND_REQUEST, // /CS asserted, waiting for IRQ before sending command
   CC3K_STATE_COMMAND,         // Sent a command, waiting for response
   CC3K_STATE_IDLE,            // Idle
   CC3K_STATE_READ_HEADER,     // CS low, IRQ received, clocking in data
@@ -55,7 +57,10 @@ typedef struct _cc3k_config_t
 typedef struct _cc3k_stats_t
 {
   uint32_t interrupts;
+  uint32_t unhandled_interrupts;
   uint32_t spi_done;
+  uint32_t commands;
+  uint32_t events;
   uint32_t socket_writes;
   uint32_t socket_reads;
 } cc3k_stats_t;
@@ -72,8 +77,15 @@ typedef struct _cc3k_t
 	/** @brief Current operational state */
 	cc3k_state_t state;
 
+  /** @brief State of last unhandled interrupt */
+  cc3k_state_t unhandled_state;
+
   /** @brief Last command sent */
   cc3k_command_t command;
+
+  /** @brief Flag to indicate an unhandled interrupt is pending */
+  // TODO: Turn this into a bitmask
+  uint8_t interrupt_pending;
 
 	/**
     * @brief Pointer to SPI Packet buffer
@@ -81,9 +93,18 @@ typedef struct _cc3k_t
     */ 
 	uint8_t packet_tx_buffer[CC3K_BUFFER_SIZE];
 	uint8_t packet_rx_buffer[CC3K_BUFFER_SIZE];
-	uint16_t packet_buffer_length;
+
+  uint16_t packet_tx_buffer_length;
+  uint16_t packet_rx_buffer_length;
 
   uint32_t last_time_ms;
+  uint32_t last_update;
+
+  /** @brief Number of buffers available on the chip */
+  uint8_t buffers;
+
+  // TODO: This doesn't need to be 32 bit
+  uint32_t wlan_status;
 } cc3k_t;
 
 cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config);
@@ -109,6 +130,8 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver);
  * @brief Create a command packet in the transmit buffer
  */
 cc3k_status_t cc3k_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t argument_length);
+
+cc3k_status_t cc3k_process_event(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t arg_length);
 
 cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms);
 

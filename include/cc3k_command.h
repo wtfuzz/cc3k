@@ -43,4 +43,31 @@ typedef enum _cc3k_command_t
 	CC3K_COMMAND_READ_BUFFER_SIZE			= 0x400B
 } cc3k_command_t;
 
+typedef enum _cc3k_wlan_status_t
+{
+  WLAN_STATUS_DISCONNECTED,
+  WLAN_STATUS_SCANNING,
+  WLAN_STATUS_CONNECTING,
+  WLAN_STATUS_CONNECTED
+} cc3k_wlan_status_t;
+
+/**
+ * @brief Get status IOCTL event payload
+ */
+typedef struct _cc3k_status_event_t
+{
+  uint8_t status;
+  uint32_t wlan_status;
+} cc3k_status_event_t;
+
+/**
+ * @brief Read Buffer Size event payload
+ */
+typedef struct _cc3k_buffer_size_t
+{
+  uint8_t status;
+  uint8_t count;
+  uint16_t size;
+} cc3k_buffer_size_t;
+
 #endif
