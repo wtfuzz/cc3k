@@ -14,6 +14,7 @@ typedef enum _cc3k_status_t
 	CC3K_OK,
 	CC3K_ERROR,
   CC3K_INVALID,
+  CC3K_INVALID_STATE,
 } cc3k_status_t;
 
 #endif

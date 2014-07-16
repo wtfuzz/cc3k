@@ -9,9 +9,13 @@
 
 #include <inttypes.h>
 
+#define HI(word) ((word & 0xFF00) >> 8)
+#define LO(word) ((word & 0x00FF) << 8)
+
 typedef enum _cc3k_spi_packet_type_t
 {
 	CC3K_PACKET_TYPE_WRITE	= 0x1,
+  CC3K_PACKET_TYPE_REPLY = 0x02,
 	CC3K_PACKET_TYPE_READ	= 0x3
 } cc3k_spi_packet_type_t;
 
@@ -22,10 +26,17 @@ typedef enum _cc3k_spi_packet_type_t
  */
 typedef struct _cc3k_spi_header_t
 {
-	uint8_t type;		// Operation (CC3K_PACKET_TYPE_WRITE or CC3K_PACKET_TYPE_READ)
-	uint16_t length;	// Length bytes for write operation, 0 for read
-	uint16_t busy;		//	Busy bytes, always 0
+	uint8_t type;       		// Operation (CC3K_PACKET_TYPE_WRITE or CC3K_PACKET_TYPE_READ)
+	uint16_t length;      	// Length bytes for write operation, 0 for read
+	uint16_t busy;      		// Busy bytes, always 0
 } __attribute__ ((packed)) cc3k_spi_header_t;
+
+typedef struct _cc3k_spi_rx_header_t
+{
+	uint8_t type;       		// Operation (CC3K_PACKET_TYPE_REPLY)
+	uint16_t busy;      		// Busy bytes, always 0
+	uint16_t length;      	// Length bytes for read operation
+} __attribute__ ((packed)) cc3k_spi_rx_header_t;
 
 /**
  * @brief SPI Payload Types

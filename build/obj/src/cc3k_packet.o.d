@@ -6,7 +6,19 @@ obj/src/cc3k_packet.o: ../src/cc3k_packet.c ../include/cc3k.h \
  /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/stdint.h \
  /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/machine/_default_types.h \
  /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/lib/gcc/arm-none-eabi/4.8.4/include/stddef.h \
- ../include/cc3k_packet.h
+ ../include/cc3k_packet.h ../include/cc3k_command.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/string.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/_ansi.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/newlib.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/config.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/machine/ieeefp.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/reent.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/_ansi.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/_types.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/machine/_types.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/lock.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/lib/gcc/arm-none-eabi/4.8.4/include-fixed/sys/cdefs.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/string.h
 
 ../include/cc3k.h:
 
@@ -25,3 +37,29 @@ obj/src/cc3k_packet.o: ../src/cc3k_packet.c ../include/cc3k.h \
 /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/lib/gcc/arm-none-eabi/4.8.4/include/stddef.h:
 
 ../include/cc3k_packet.h:
+
+../include/cc3k_command.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/string.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/_ansi.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/newlib.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/config.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/machine/ieeefp.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/reent.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/_ansi.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/_types.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/machine/_types.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/lock.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/lib/gcc/arm-none-eabi/4.8.4/include-fixed/sys/cdefs.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/string.h:
