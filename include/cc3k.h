@@ -10,6 +10,8 @@
 #include <cc3k_type.h>
 #include <cc3k_packet.h>
 #include <cc3k_command.h>
+#include <cc3k_event.h>
+#include <cc3k_socket.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,6 +54,7 @@ typedef struct _cc3k_config_t
   void (*assertChipSelect)(int assert);
   /** @brief Synchronous SPI Send/Receive */
   void (*spiTransaction)(uint8_t *out, uint8_t *in, uint16_t length, int async);
+
 } cc3k_config_t;
 
 typedef struct _cc3k_stats_t
@@ -61,9 +64,19 @@ typedef struct _cc3k_stats_t
   uint32_t spi_done;
   uint32_t commands;
   uint32_t events;
+  uint32_t unsolicited;
   uint32_t socket_writes;
   uint32_t socket_reads;
 } cc3k_stats_t;
+
+typedef struct _cc3k_ipconfig_t
+{
+  uint32_t ip;
+  uint32_t netmask;
+  uint32_t default_gateway;
+  uint32_t dhcp_server;
+  uint32_t dns_server;
+} cc3k_ipconfig_t;
 
 /**
  * @brief Driver Context
@@ -71,6 +84,8 @@ typedef struct _cc3k_stats_t
 typedef struct _cc3k_t
 {
   cc3k_config_t *config;
+
+  cc3k_ipconfig_t ipconfig;
 
   cc3k_stats_t stats;
 
@@ -134,6 +149,11 @@ cc3k_status_t cc3k_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_
 cc3k_status_t cc3k_process_event(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t arg_length);
 
 cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms);
+
+/**
+ * @brief Start connecting to an AP
+ */
+cc3k_status_t cc3k_wlan_connect(cc3k_t *driver, cc3k_security_type_t security_type, const char *ssid, uint8_t ssid_length, char *key, uint8_t key_length);
 
 #ifdef __cplusplus
 } // End of extern "C"

@@ -41,6 +41,25 @@ static inline void _chip_enable(cc3k_t *driver, int enable)
   (*driver->config->enableChip)(enable);
 }
 
+static inline void _transition(cc3k_t *driver, cc3k_state_t state)
+{
+  driver->state = state;
+}
+
+cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t args_length)
+{
+  // Populate the transmit buffer with the command
+  cc3k_command(driver, opcode, arg, args_length);
+  driver->stats.commands++;
+
+  // Transition into the command request state, and assert /CS
+  // In this state, the ISR will be called when the chip is ready
+  // to receive the command. The SPI transmissing will kickoff then.
+  _transition(driver, CC3K_STATE_COMMAND_REQUEST);
+  _assert_cs(driver, 1);
+  return CC3K_OK;
+}
+
 cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
 {
   // Patch source parameter to simple link start command
@@ -82,25 +101,36 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
   _int_enable(driver, 1);
   _assert_cs(driver, 0);
 
-  // Check the returned data. The first 4 bytes should be 0x02, 0x00, 0xFF, 0x00
-  // NOTE: It seems this isn't the case depending on chip patch level?
-
-/*
-  if(driver->packet_rx_buffer[0] != 0x02)
-    return CC3K_ERROR;
-  if(driver->packet_rx_buffer[2] != 0xFF)
-    return CC3K_ERROR;
-*/
-
   driver->state = CC3K_STATE_SIMPLE_LINK_START;
 
 	return CC3K_OK;	
 }
 
-
-static inline void _transition(cc3k_t *driver, cc3k_state_t state)
+cc3k_status_t cc3k_wlan_connect(
+  cc3k_t *driver,
+  cc3k_security_type_t security_type,
+  const char *ssid,
+  uint8_t ssid_length,
+  char *key,
+  uint8_t key_length)
 {
-  driver->state = state;
+  cc3k_command_connect_t cmd;
+  
+  if(driver->state != CC3K_STATE_IDLE)
+    return CC3K_INVALID;
+
+  bzero(&cmd, sizeof(cc3k_command_connect_t));
+
+  cmd.ssid_offset = 0x1C;
+  cmd.ssid_length = ssid_length;
+  cmd.security_type = security_type;
+  cmd.key_offset = 16 + CC3K_SSID_MAX;
+  cmd.key_length = key_length;
+  cmd.pad = 0;
+  bzero(cmd.bssid, sizeof(cmd.bssid));
+  memcpy(cmd.ssid, ssid, ssid_length);
+  memcpy(cmd.key, key, key_length);
+  return cc3k_send_command(driver, CC3K_COMMAND_WLAN_CONNECT, &cmd, sizeof(cc3k_command_connect_t));
 }
 
 cc3k_status_t cc3k_read_header(cc3k_t *driver)
@@ -141,6 +171,7 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver)
       break;
 
     case CC3K_STATE_READ_PAYLOAD:
+      driver->stats.events++;
       _transition(driver, CC3K_STATE_EVENT);
       _assert_cs(driver, 0);
       break;
@@ -155,20 +186,6 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver)
   return CC3K_OK;
 }
 
-
-cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t args_length)
-{
-  // Populate the transmit buffer with the command
-  cc3k_command(driver, opcode, arg, args_length);
-  driver->stats.commands++;
-
-  // Transition into the command request state, and assert /CS
-  // In this state, the ISR will be called when the chip is ready
-  // to receive the command. The SPI transmissing will kickoff then.
-  _transition(driver, CC3K_STATE_COMMAND_REQUEST);
-  _assert_cs(driver, 1);
-  return CC3K_OK;
-}
 
 cc3k_status_t cc3k_interrupt(cc3k_t *driver)
 {
@@ -218,11 +235,11 @@ static cc3k_status_t _process_event(cc3k_t *driver)
     return CC3K_INVALID;
 
   payload = driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t) + sizeof(cc3k_command_header_t);
-  cc3k_process_event(driver, event_header->opcode, payload, event_header->argument_length);
 
   if(event_header->opcode >= 0x4100)
   {
-    // Async event
+    // Async unsolocited event
+    driver->stats.unsolicited++;
   }
   else
   {
@@ -231,19 +248,18 @@ static cc3k_status_t _process_event(cc3k_t *driver)
     if(event_header->opcode != driver->command)
       return CC3K_INVALID;
 
+    // Handle the first simple link start command and kickoff a read_buffer_size
     switch(event_header->opcode)
     {
       case CC3K_COMMAND_SIMPLE_LINK_START:
         cc3k_send_command(driver, CC3K_COMMAND_READ_BUFFER_SIZE, NULL, 0);
         break;
-      case CC3K_COMMAND_READ_BUFFER_SIZE:
-        // Get the number of buffers from the response
-        
-        break;
       default:
         break;
     }
   }
+
+  cc3k_process_event(driver, event_header->opcode, payload, event_header->argument_length);
  
   return CC3K_OK; 
 }
@@ -269,10 +285,17 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
   switch(driver->state)
   {
     case CC3K_STATE_EVENT:
+      _int_enable(driver, 0);
+
+      // Transition to the IDLE state
       _transition(driver, CC3K_STATE_IDLE);
 
       // Process the event in packet_rx_buffer
       status = _process_event(driver);
+
+      _int_enable(driver, 1);
+
+      // Check if event processing failed
       if(status != CC3K_OK)
         return status;
 
@@ -280,17 +303,16 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
 
     case CC3K_STATE_IDLE:
 
-      cc3k_send_command(driver, CC3K_COMMAND_IOCTL_STATUSGET, NULL, 0);
+      //cc3k_send_command(driver, CC3K_COMMAND_IOCTL_STATUSGET, NULL, 0);
 
-#if 0
       // Check timer
-      if(time_ms - driver->last_update > 1000)
+      if(time_ms - driver->last_update > 10000)
       {
         // Get status
         cc3k_send_command(driver, CC3K_COMMAND_IOCTL_STATUSGET, NULL, 0);
         driver->last_update = time_ms;
       }
-#endif
+
       break;
 
     default:

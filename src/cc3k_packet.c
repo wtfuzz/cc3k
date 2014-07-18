@@ -34,7 +34,7 @@ cc3k_status_t cc3k_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_
   cmd_header->argument_length = argument_length;
 
   if(argument_length > 0)
-    memcpy(cmd_header + sizeof(cc3k_command_header_t), arg, argument_length);
+    memcpy((uint8_t *)cmd_header + sizeof(cc3k_command_header_t), arg, argument_length);
 
   // Keep the last command opcode in the driver context
   driver->command = opcode;

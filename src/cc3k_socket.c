@@ -1,4 +1,9 @@
+/**
+ * @file CC3K Driver Socket Manager
+ */
+
 #include <stdlib.h>
+#include <cc3k.h>
 #include <socket.h>
 
 int socket(int domain, int family, int protocol)
