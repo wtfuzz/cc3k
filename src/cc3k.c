@@ -222,9 +222,15 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
       _transition(driver, CC3K_STATE_DATA);
       _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, driver->packet_tx_buffer_length);
       break;
+
+    case CC3K_STATE_DATA_RX:
+      cc3k_read_header(driver);
+      break;
+
     case CC3K_STATE_SIMPLE_LINK_START:
       cc3k_read_header(driver);
       break;
+
     case CC3K_STATE_DATA:
     case CC3K_STATE_COMMAND:
     case CC3K_STATE_IDLE:
@@ -232,8 +238,8 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
       cc3k_read_header(driver);
       break;
     case CC3K_STATE_INIT:
-    case CC3K_STATE_READ_HEADER:
-    case CC3K_STATE_READ_PAYLOAD:
+    //case CC3K_STATE_READ_HEADER:
+    //case CC3K_STATE_READ_PAYLOAD:
       break;
     default:
       driver->stats.unhandled_interrupts++;
@@ -250,7 +256,14 @@ static cc3k_status_t _process_event(cc3k_t *driver)
   cc3k_command_header_t *event_header;
   uint8_t *payload;
   
-  event_header = (cc3k_command_header_t *)(driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t)); 
+  event_header = (cc3k_command_header_t *)(driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t));
+
+  if(event_header->type == CC3K_PAYLOAD_TYPE_DATA)
+  {
+    // Pass the data to the socket manager
+    //cc3k_recv_event(&driver->socket_manager, recv_event->sd, recv_event->length);
+    return CC3K_OK;
+  }
 
   if(event_header->type != CC3K_PAYLOAD_TYPE_EVENT)
     return CC3K_INVALID;
@@ -274,6 +287,13 @@ static cc3k_status_t _process_event(cc3k_t *driver)
     {
       case CC3K_COMMAND_SIMPLE_LINK_START:
         cc3k_send_command(driver, CC3K_COMMAND_READ_BUFFER_SIZE, NULL, 0);
+        break;
+      case CC3K_COMMAND_RECV:
+      case CC3K_COMMAND_RECVFROM:
+        // We have received a response to a recv request,
+        // so transition into the DATA_RX state to receive
+        // the following data frame
+        _transition(driver, CC3K_STATE_DATA_RX);
         break;
       default:
         break;
@@ -314,19 +334,20 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
       // Process the event in packet_rx_buffer
       status = _process_event(driver);
 
-
       // Check if event processing failed
       if(status != CC3K_OK)
         return status;
 
       break;
 
+    case CC3K_STATE_DATA_RX:
     case CC3K_STATE_IDLE:
       // Check if there is a pending interrupt
       if(driver->interrupt_pending)
       {
         cc3k_read_header(driver);
         driver->interrupt_pending = 0;
+        break;
       }
 
       // Check timer
@@ -338,9 +359,9 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
       }
 
       // Run the socket manager
-      if(driver->wlan_status == WLAN_STATUS_CONNECTED)
+      if( (driver->wlan_status == WLAN_STATUS_CONNECTED) &&
+          (driver->dhcp_complete == 1) )
         cc3k_socket_manager_loop(&driver->socket_manager);
-
 
       break;
 
@@ -385,6 +406,15 @@ cc3k_status_t cc3k_close(cc3k_t *driver, int sd)
 {
   uint32_t s = sd;
   return cc3k_send_command(driver, CC3K_COMMAND_CLOSE, (uint8_t *)&s, sizeof(uint32_t));
+}
+
+cc3k_status_t cc3k_recv(cc3k_t *driver, int sd, uint16_t length)
+{
+  cc3k_command_recv_t cmd;
+  cmd.sd = sd;
+  cmd.length = length;
+  cmd.flags = 0;
+  return cc3k_send_command(driver, CC3K_COMMAND_RECV, (uint8_t *)&cmd, sizeof(cc3k_command_recv_t)); 
 }
 
 cc3k_status_t cc3k_sendto(cc3k_t *driver, int sd, uint8_t *payload, uint16_t payload_length, cc3k_sockaddr_t *sa)

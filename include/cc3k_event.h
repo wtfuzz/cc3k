@@ -27,4 +27,11 @@ typedef struct _cc3k_socket_event_t
   uint32_t result;
 } __attribute__ ((packed)) cc3k_socket_event_t;
 
+typedef struct _cc3k_recv_event_t
+{
+  int32_t sd;
+  int32_t length;
+  uint32_t flags;
+} __attribute__ ((packed)) cc3k_recv_event_t;
+
 #endif

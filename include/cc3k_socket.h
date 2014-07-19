@@ -42,6 +42,9 @@ typedef struct _cc3k_socket_t
   // For now, store the sockaddr in here
   cc3k_sockaddr_t sockaddr;
 
+  int rx;
+  int rx_bytes;
+
 } cc3k_socket_t;
 
 /**

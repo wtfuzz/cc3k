@@ -19,7 +19,7 @@ typedef struct _cc3k_t cc3k_t;
 #include <cc3k_event.h>
 #include <cc3k_socket.h>
 
-#define CC3K_BUFFER_SIZE 1500
+#define CC3K_BUFFER_SIZE 1500+200
 
 /**
  * @brief Driver SPI protocol state
@@ -36,6 +36,8 @@ typedef enum _cc3k_state_t
   CC3K_STATE_EVENT,             // Event was received for the main loop to process
   CC3K_STATE_DATA_REQUEST,      // Driver is requesting data transmission to chip. CS low, waiting for IRQ
   CC3K_STATE_DATA,              // Performing SPI transaction, and waiting for a response
+  CC3K_STATE_DATA_RX_REQUEST,   // Receiving a data frame
+  CC3K_STATE_DATA_RX,           // Receiving a data frame
 } cc3k_state_t;
 
 /**
@@ -96,6 +98,7 @@ struct _cc3k_t
   cc3k_config_t *config;
 
   cc3k_ipconfig_t ipconfig;
+  uint8_t dhcp_complete;
 
   cc3k_stats_t stats;
   
@@ -177,6 +180,7 @@ cc3k_status_t cc3k_wlan_connect(cc3k_t *driver, cc3k_security_type_t security_ty
 
 cc3k_status_t cc3k_socket(cc3k_t *driver, int family, int type, int protocol);
 cc3k_status_t cc3k_connect(cc3k_t *driver, int sd, cc3k_sockaddr_t *sa);
+cc3k_status_t cc3k_recv(cc3k_t *driver, int sd, uint16_t length);
 
 #ifdef __cplusplus
 } // End of extern "C"

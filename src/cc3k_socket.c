@@ -7,6 +7,18 @@
 #include <socket.h>
 #include <string.h>
 
+static cc3k_status_t _find_socket(cc3k_socket_manager_t *socket_manager, int32_t sd, cc3k_socket_t **socket)
+{
+  int i;
+  *socket = NULL;
+  for(i=0;i<CC3K_MAX_SOCKETS;i++)
+  {
+    if((socket_manager->socket[i] != NULL) && (socket_manager->socket[i]->sd == sd))
+      *socket = socket_manager->socket[i];
+  }
+  return CC3K_OK;
+}
+
 /**
  * These are called from the event processor when a socket event is received
  * The current socket index associated with this event is stored in the socket manager
@@ -22,12 +34,13 @@ cc3k_status_t cc3k_connect_event(cc3k_socket_manager_t *socket_manager, uint32_t
 {
   if(result == 0)
   {
+    // Successfully connected
     socket_manager->current->state = SOCKET_STATE_READY;
   }
   else
   {
-    socket_manager->current->state = SOCKET_STATE_FAILED;
     // Connection failed
+    socket_manager->current->state = SOCKET_STATE_FAILED;
   }    
 
   return CC3K_OK;
@@ -40,6 +53,22 @@ cc3k_status_t cc3k_close_event(cc3k_socket_manager_t *socket_manager, uint32_t r
 
 cc3k_status_t cc3k_bind_event(cc3k_socket_manager_t *socket_manager, uint32_t result)
 {
+  return CC3K_OK;
+}
+
+cc3k_recv_event(cc3k_socket_manager_t *socket_manager, int32_t sd, int32_t length)
+{
+  cc3k_socket_t *socket;
+
+  // Find the socket by descriptor
+  _find_socket(socket_manager, sd, &socket);
+
+  if(socket)
+  {
+    socket->rx++;
+    socket->rx_bytes += length;
+  }
+
   return CC3K_OK;
 }
 
@@ -75,6 +104,10 @@ static void _socket_update(cc3k_socket_manager_t *socket_manager, cc3k_socket_t 
     case SOCKET_STATE_CONNECTING:
       break;
     case SOCKET_STATE_READY:
+      if(socket->type == SOCK_STREAM)
+      {
+        cc3k_recv(socket_manager->driver, socket->sd, 1000);
+      }
       break;
     case SOCKET_STATE_FAILED:
       // Close the socket
@@ -108,6 +141,11 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager)
       continue;
 
     _socket_update(socket_manager, socket);
+
+    if(socket->state == SOCKET_STATE_READY)
+    {
+      // Add the socket to the fd set for select
+    }
   } 
 
   return CC3K_OK;
@@ -127,8 +165,14 @@ cc3k_status_t cc3k_socket_add(cc3k_t *driver, cc3k_socket_t *socket)
   return CC3K_OK;
 }
 
-cc3k_status_t cc3k_socket_tcp_client(cc3k_socket_manager_t *socket_manager, char *addr, uint16_t port)
+cc3k_status_t cc3k_socket_write(cc3k_socket_t *socket, uint8_t *data, int length)
 {
-  
-  return CC3K_OK;  
+  switch(socket->type)  
+  {
+    case SOCK_STREAM:
+      break;
+    case SOCK_DGRAM:
+      break;
+  }
+  return CC3K_OK;
 }

@@ -121,4 +121,11 @@ typedef struct _cc3k_command_connect_t
   cc3k_sockaddr_t addr;
 } __attribute__ ((packed)) cc3k_command_connect_t;
 
+typedef struct _cc3k_command_recv_t
+{
+  uint32_t sd;
+  uint32_t length;
+  uint32_t flags;
+} __attribute__ ((packed)) cc3k_command_recv_t;
+
 #endif
