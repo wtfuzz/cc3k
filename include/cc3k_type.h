@@ -15,6 +15,7 @@ typedef enum _cc3k_status_t
 	CC3K_ERROR,
   CC3K_INVALID,
   CC3K_INVALID_STATE,
+  CC3K_BUSY,
 } cc3k_status_t;
 
 /**
@@ -25,6 +26,6 @@ typedef struct _cc3k_sockaddr_t
   uint16_t family;
   uint16_t port;    // Big endian
   uint32_t addr;    // Big endian
-} cc3k_sockaddr_t;
+} __attribute__ ((packed)) cc3k_sockaddr_t;
 
 #endif

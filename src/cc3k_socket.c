@@ -20,8 +20,22 @@ cc3k_status_t cc3k_socket_event(cc3k_socket_manager_t *socket_manager, uint32_t 
 
 cc3k_status_t cc3k_connect_event(cc3k_socket_manager_t *socket_manager, uint32_t result)
 {
-  socket_manager->current->state = SOCKET_STATE_READY;
+  if(result == 0)
+  {
+    socket_manager->current->state = SOCKET_STATE_READY;
+  }
+  else
+  {
+    socket_manager->current->state = SOCKET_STATE_FAILED;
+    // Connection failed
+  }    
+
   return CC3K_OK;
+}
+
+cc3k_status_t cc3k_close_event(cc3k_socket_manager_t *socket_manager, uint32_t result)
+{
+  socket_manager->current->state = SOCKET_STATE_INIT;
 }
 
 cc3k_status_t cc3k_bind_event(cc3k_socket_manager_t *socket_manager, uint32_t result)
@@ -48,10 +62,14 @@ static void _socket_update(cc3k_socket_manager_t *socket_manager, cc3k_socket_t 
       // Socket is ready, descriptor is valid
 
       // If this is a TCP client socket, connect to the endpoint
-      if(cc3k_connect(socket_manager->driver, socket->sd, &socket->sockaddr) == CC3K_OK)
-      {
-        socket_manager->current = socket;
-        socket->state = SOCKET_STATE_CONNECTING;
+     
+      if(socket->type == SOCK_STREAM)
+      { 
+        if(cc3k_connect(socket_manager->driver, socket->sd, &socket->sockaddr) == CC3K_OK)
+        {
+          socket_manager->current = socket;
+          socket->state = SOCKET_STATE_CONNECTING;
+        }
       }
       break;
     case SOCKET_STATE_CONNECTING:
@@ -59,7 +77,12 @@ static void _socket_update(cc3k_socket_manager_t *socket_manager, cc3k_socket_t 
     case SOCKET_STATE_READY:
       break;
     case SOCKET_STATE_FAILED:
-      // What do we do now?
+      // Close the socket
+      if(cc3k_close(socket_manager->driver, socket->sd) == CC3K_OK)
+      {
+        socket_manager->current = socket;
+        socket->state = SOCKET_STATE_CLOSING;
+      }
       break;
   } 
 }
@@ -90,24 +113,22 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager)
   return CC3K_OK;
 }
 
-
-int socket(int domain, int family, int protocol)
+cc3k_status_t cc3k_socket_add(cc3k_t *driver, cc3k_socket_t *socket)
 {
-  return -1;
+  int i;
+
+  if(driver->socket_manager.num_sockets + 1 == CC3K_MAX_SOCKETS)
+    return CC3K_INVALID;
+
+  i = driver->socket_manager.num_sockets++;
+
+  driver->socket_manager.socket[i] = socket;
+
+  return CC3K_OK;
 }
 
-int bind(int socket, const sockaddr *address, socklen_t address_len)
+cc3k_status_t cc3k_socket_tcp_client(cc3k_socket_manager_t *socket_manager, char *addr, uint16_t port)
 {
-
-  return -1;
-}
-
-int connect(int socket, const sockaddr *address, socklen_t address_len)
-{
-  return -1;
-}
-
-int closesocket(int socket)
-{
-  return -1;
+  
+  return CC3K_OK;  
 }

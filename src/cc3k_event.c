@@ -31,6 +31,10 @@ cc3k_status_t cc3k_process_event(cc3k_t *driver, uint16_t opcode, uint8_t *arg, 
       socket_event = (cc3k_socket_event_t *)arg;
       cc3k_socket_event(&driver->socket_manager, socket_event->result);
       break;
+    case CC3K_COMMAND_CLOSE:
+      socket_event = (cc3k_socket_event_t *)arg;
+      cc3k_close_event(&driver->socket_manager, socket_event->result);
+      break;
     case CC3K_COMMAND_BIND:
       socket_event = (cc3k_socket_event_t *)arg;
       cc3k_bind_event(&driver->socket_manager, socket_event->result);

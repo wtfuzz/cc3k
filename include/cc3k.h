@@ -21,18 +21,21 @@ typedef struct _cc3k_t cc3k_t;
 
 #define CC3K_BUFFER_SIZE 1500
 
+/**
+ * @brief Driver SPI protocol state
+ */
 typedef enum _cc3k_state_t
 {
-	CC3K_STATE_INIT,            // Initial state
+	CC3K_STATE_INIT,              // Initial state
   CC3K_STATE_SIMPLE_LINK_START, // Initial simple link start command issued
-  CC3K_STATE_COMMAND_REQUEST, // /CS asserted, waiting for IRQ before sending command
-  CC3K_STATE_COMMAND,         // Sent a command, waiting for response
-  CC3K_STATE_IDLE,            // Idle
-  CC3K_STATE_READ_HEADER,     // CS low, IRQ received, clocking in data
-  CC3K_STATE_READ_PAYLOAD,    // Reading payload bytes
-  CC3K_STATE_EVENT,           // Event was received for the main loop to process
-  CC3K_STATE_WRITE_REQUEST,
-  CC3K_STATE_WRITING,
+  CC3K_STATE_COMMAND_REQUEST,   // /CS asserted, waiting for IRQ before sending command
+  CC3K_STATE_COMMAND,           // Sent a command, waiting for response
+  CC3K_STATE_IDLE,              // Idle
+  CC3K_STATE_READ_HEADER,       // CS low, IRQ received, clocking in data
+  CC3K_STATE_READ_PAYLOAD,      // Reading payload bytes
+  CC3K_STATE_EVENT,             // Event was received for the main loop to process
+  CC3K_STATE_DATA_REQUEST,      // Driver is requesting data transmission to chip. CS low, waiting for IRQ
+  CC3K_STATE_DATA,              // Performing SPI transaction, and waiting for a response
 } cc3k_state_t;
 
 /**
@@ -69,6 +72,8 @@ typedef struct _cc3k_stats_t
   uint32_t unsolicited;
   uint32_t socket_writes;
   uint32_t socket_reads;
+  uint32_t tx;
+  uint32_t rx;
 } cc3k_stats_t;
 
 /**
@@ -158,6 +163,8 @@ cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, u
  * @brief Create a command packet in the transmit buffer
  */
 cc3k_status_t cc3k_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t argument_length);
+cc3k_status_t cc3k_data(cc3k_t *driver, uint8_t opcode, uint8_t *arg, uint8_t arg_length,
+  uint8_t *payload, uint16_t payload_length, uint8_t *footer, uint8_t footer_length);
 
 cc3k_status_t cc3k_process_event(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t arg_length);
 
