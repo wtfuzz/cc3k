@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <cc3k.h>
 #include <cc3k_command.h>
-#include <strings.h>
+#include <string.h>
 
 /**
  * @brief Poll the interrupt pin and wait for it to fall
@@ -69,6 +69,8 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
 
   driver->config = config;
 
+  cc3k_socket_manager_init(driver, &driver->socket_manager);
+
   _int_enable(driver, 0);
 
   _assert_cs(driver, 0);
@@ -114,12 +116,12 @@ cc3k_status_t cc3k_wlan_connect(
   char *key,
   uint8_t key_length)
 {
-  cc3k_command_connect_t cmd;
+  cc3k_command_wlan_connect_t cmd;
   
   if(driver->state != CC3K_STATE_IDLE)
     return CC3K_INVALID;
 
-  bzero(&cmd, sizeof(cc3k_command_connect_t));
+  bzero(&cmd, sizeof(cc3k_command_wlan_connect_t));
 
   cmd.ssid_offset = 0x1C;
   cmd.ssid_length = ssid_length;
@@ -130,7 +132,7 @@ cc3k_status_t cc3k_wlan_connect(
   bzero(cmd.bssid, sizeof(cmd.bssid));
   memcpy(cmd.ssid, ssid, ssid_length);
   memcpy(cmd.key, key, key_length);
-  return cc3k_send_command(driver, CC3K_COMMAND_WLAN_CONNECT, &cmd, sizeof(cc3k_command_connect_t));
+  return cc3k_send_command(driver, CC3K_COMMAND_WLAN_CONNECT, (uint8_t *)&cmd, sizeof(cc3k_command_wlan_connect_t));
 }
 
 cc3k_status_t cc3k_read_header(cc3k_t *driver)
@@ -302,9 +304,6 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
       break;
 
     case CC3K_STATE_IDLE:
-
-      //cc3k_send_command(driver, CC3K_COMMAND_IOCTL_STATUSGET, NULL, 0);
-
       // Check timer
       if(time_ms - driver->last_update > 10000)
       {
@@ -312,7 +311,6 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
         cc3k_send_command(driver, CC3K_COMMAND_IOCTL_STATUSGET, NULL, 0);
         driver->last_update = time_ms;
       }
-
       break;
 
     default:
@@ -330,4 +328,31 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
   //_int_enable(driver, 1);
 
   return CC3K_OK;
+}
+
+
+/**
+ * Chip socket command functions
+ */
+
+cc3k_status_t cc3k_socket(cc3k_t *driver, int family, int type, int protocol)
+{
+  cc3k_command_socket_t cmd;
+
+  cmd.family = family;
+  cmd.type = type;
+  cmd.protocol = protocol;
+
+  return cc3k_send_command(driver, CC3K_COMMAND_SOCKET, (uint8_t *)&cmd, sizeof(cc3k_command_socket_t));
+}
+
+cc3k_status_t cc3k_connect(cc3k_t *driver, int sd, cc3k_sockaddr_t *sa)
+{
+  cc3k_command_connect_t cmd;
+  cmd.sd = sd;
+  cmd.unk = 0x8;
+  cmd.addr_length = sizeof(cc3k_sockaddr_t);
+  cmd.addr = *sa;
+
+  return cc3k_send_command(driver, CC3K_COMMAND_CONNECT, (uint8_t *)&cmd, sizeof(cc3k_command_connect_t));
 }

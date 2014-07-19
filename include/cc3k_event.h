@@ -12,4 +12,19 @@ typedef enum _cc3k_event_opcode_t
   CC3K_EVENT_TCP_CLOSE_WAIT     = 0x8800
 } cc3k_event_opcode_t;
 
+/**
+ * @brief Get status IOCTL event payload
+ */
+typedef struct _cc3k_status_event_t
+{
+  uint8_t status;
+  uint32_t wlan_status;
+} __attribute__ ((packed)) cc3k_status_event_t;
+
+typedef struct _cc3k_socket_event_t
+{
+  uint8_t status;
+  uint32_t result;
+} __attribute__ ((packed)) cc3k_socket_event_t;
+
 #endif

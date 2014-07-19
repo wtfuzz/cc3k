@@ -59,14 +59,6 @@ typedef enum _cc3k_wlan_status_t
   WLAN_STATUS_CONNECTED
 } cc3k_wlan_status_t;
 
-/**
- * @brief Get status IOCTL event payload
- */
-typedef struct _cc3k_status_event_t
-{
-  uint8_t status;
-  uint32_t wlan_status;
-} __attribute__ ((packed)) cc3k_status_event_t;
 
 /**
  * @brief Read Buffer Size event payload
@@ -95,7 +87,7 @@ typedef enum _cc3k_security_type_t
 /**
  * @brief Connect command header
  */
-typedef struct _cc3k_command_connect_t
+typedef struct _cc3k_command_wlan_connect_t
 {
   uint32_t ssid_offset;   // Always 0x0000001C (28 bytes to beginning of SSID)
   uint32_t ssid_length;   // Length of the SSID following this header
@@ -109,6 +101,24 @@ typedef struct _cc3k_command_connect_t
   uint8_t bssid[6];       // BSSID (fill with 0 for any)
   uint8_t ssid[CC3K_SSID_MAX];
   uint8_t key[CC3K_KEY_MAX];
-} cc3k_command_connect_t;
+} __attribute__ ((packed)) cc3k_command_wlan_connect_t;
+
+/**
+ * @brief Socket command header
+ */
+typedef struct _cc3k_command_socket_t
+{
+  uint32_t family;
+  uint32_t type;
+  uint32_t protocol;
+} __attribute__ ((packed)) cc3k_command_socket_t;
+
+typedef struct _cc3k_command_connect_t
+{
+  uint32_t sd;
+  uint32_t unk;
+  uint32_t addr_length;
+  cc3k_sockaddr_t addr;
+} __attribute__ ((packed)) cc3k_command_connect_t;
 
 #endif

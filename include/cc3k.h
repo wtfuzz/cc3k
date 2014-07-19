@@ -7,15 +7,17 @@
 #ifndef _CC3K_H
 #define _CC3K_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct _cc3k_t cc3k_t;
+
 #include <cc3k_type.h>
 #include <cc3k_packet.h>
 #include <cc3k_command.h>
 #include <cc3k_event.h>
 #include <cc3k_socket.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #define CC3K_BUFFER_SIZE 1500
 
@@ -69,6 +71,9 @@ typedef struct _cc3k_stats_t
   uint32_t socket_reads;
 } cc3k_stats_t;
 
+/**
+ * @brief IP Configuration structure
+ */
 typedef struct _cc3k_ipconfig_t
 {
   uint32_t ip;
@@ -81,13 +86,16 @@ typedef struct _cc3k_ipconfig_t
 /**
  * @brief Driver Context
  */
-typedef struct _cc3k_t
+struct _cc3k_t
 {
   cc3k_config_t *config;
 
   cc3k_ipconfig_t ipconfig;
 
   cc3k_stats_t stats;
+  
+  /** @brief Socket Manager context */
+  cc3k_socket_manager_t socket_manager;
 
 	/** @brief Current operational state */
 	cc3k_state_t state;
@@ -120,7 +128,7 @@ typedef struct _cc3k_t
 
   // TODO: This doesn't need to be 32 bit
   uint32_t wlan_status;
-} cc3k_t;
+};
 
 cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config);
 
@@ -142,6 +150,11 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver);
 cc3k_status_t cc3k_interrupt(cc3k_t *driver);
 
 /**
+ * @brief Send an asynchronous command to the chip
+ */
+cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t args_length);
+
+/**
  * @brief Create a command packet in the transmit buffer
  */
 cc3k_status_t cc3k_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t argument_length);
@@ -154,6 +167,9 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms);
  * @brief Start connecting to an AP
  */
 cc3k_status_t cc3k_wlan_connect(cc3k_t *driver, cc3k_security_type_t security_type, const char *ssid, uint8_t ssid_length, char *key, uint8_t key_length);
+
+cc3k_status_t cc3k_socket(cc3k_t *driver, int family, int type, int protocol);
+cc3k_status_t cc3k_connect(cc3k_t *driver, int sd, cc3k_sockaddr_t *sa);
 
 #ifdef __cplusplus
 } // End of extern "C"

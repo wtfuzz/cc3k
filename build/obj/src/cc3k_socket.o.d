@@ -19,7 +19,10 @@ obj/src/cc3k_socket.o: ../src/cc3k_socket.c \
  /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/lib/gcc/arm-none-eabi/4.8.4/include/stdint.h \
  /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/stdint.h \
  ../include/cc3k_packet.h ../include/cc3k_command.h \
- ../include/cc3k_event.h ../include/cc3k_socket.h ../include/socket.h
+ ../include/cc3k_event.h ../include/cc3k_socket.h ../include/socket.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/string.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/lib/gcc/arm-none-eabi/4.8.4/include-fixed/sys/cdefs.h \
+ /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/string.h
 
 /Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/stdlib.h:
 
@@ -70,3 +73,9 @@ obj/src/cc3k_socket.o: ../src/cc3k_socket.c \
 ../include/cc3k_socket.h:
 
 ../include/socket.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/string.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/lib/gcc/arm-none-eabi/4.8.4/include-fixed/sys/cdefs.h:
+
+/Users/fuzz/spark/tools/gcc-arm-none-eabi-4_8-2014q2/arm-none-eabi/include/sys/string.h:
