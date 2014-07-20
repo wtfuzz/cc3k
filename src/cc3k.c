@@ -132,7 +132,7 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
   _int_enable(driver, 1);
   _assert_cs(driver, 0);
 
-  driver->state = CC3K_STATE_SIMPLE_LINK_START;
+  _transition(driver, CC3K_STATE_SIMPLE_LINK_START);
 
 	return CC3K_OK;	
 }

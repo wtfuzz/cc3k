@@ -6,4 +6,4 @@ for i in src/*.c; do
 	gcc $CFLAGS -c $i
 done
 
-gcc $CFLAGS -o cc3k_test cc3k_test.c *.o
+ar -r libcc3k.a *.o

@@ -1,4 +1,5 @@
 #include <cc3k.h>
+#include <string.h>
 
 #include "../ap.h"
 
