@@ -106,6 +106,7 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
   _chip_enable(driver, 0);
   (*config->delayMicroseconds)(100000); 
   _chip_enable(driver, 1);
+  (*config->delayMicroseconds)(100000); 
 
   // Wait for the interrupt line to fall after enabling the chip
   _interrupt_poll_wait(driver);
