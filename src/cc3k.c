@@ -4,6 +4,11 @@
 #include <cc3k_data.h>
 #include <string.h>
 
+// Set the internal chip debug mask
+// This controls which messages the chip will output
+// on the 1.8v UART pins. These are not accessible on the Spark
+#define CC3K_DEBUG_MASK 0x00000000
+
 /**
  * @brief Poll the interrupt pin and wait for it to fall
  */
@@ -29,6 +34,7 @@ static inline void _spi_sync(cc3k_t *driver, uint8_t *out, uint8_t *in, uint16_t
 
 static inline void _spi(cc3k_t *driver, uint8_t *out, uint8_t *in, uint16_t length)
 {
+  driver->spi_busy = 1;
   (*driver->config->spiTransaction)(out, in, length, 1);
 }
 
@@ -44,17 +50,26 @@ static inline void _chip_enable(cc3k_t *driver, int enable)
 
 static inline void _transition(cc3k_t *driver, cc3k_state_t state)
 {
+  if(driver->config->transitionCallback)
+    (*driver->config->transitionCallback)(driver->state, state);
   driver->state = state;
 }
 
 cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t args_length)
 {
-  if(driver->state != CC3K_STATE_IDLE)
+  // Check if we are busy processing an existing command
+  if( (driver->state != CC3K_STATE_IDLE) || (driver->command != 0) )
     return CC3K_BUSY;
+
+  if(driver->config->commandCallback)
+    (*driver->config->commandCallback)(opcode, arg, args_length);
 
   // Populate the transmit buffer with the command
   cc3k_command(driver, opcode, arg, args_length);
   driver->stats.commands++;
+
+  // Store the pending command opcode in the driver context
+  driver->command = opcode;
 
   // Transition into the command request state, and assert /CS
   // In this state, the ISR will be called when the chip is ready
@@ -174,6 +189,8 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver)
 
   driver->stats.spi_done++;
 
+  driver->spi_busy = 0;
+
   switch(driver->state)
   {
     case CC3K_STATE_READ_HEADER:
@@ -189,14 +206,27 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver)
     case CC3K_STATE_READ_PAYLOAD:
       driver->stats.events++;
       _transition(driver, CC3K_STATE_EVENT);
+      // Done processing this command
+
+      _int_enable(driver, 1);
       _assert_cs(driver, 0);
       break;
 
-    case CC3K_STATE_COMMAND:
+    case CC3K_STATE_SEND_COMMAND:
+      _transition(driver, CC3K_STATE_COMMAND);
+      
+      // Re-enable interrupts to get notification of a response,
+      // or an unsolicited event
+      _int_enable(driver, 1);
+      _assert_cs(driver, 0);
+      break;
     case CC3K_STATE_DATA:
       // SPI transmission has completed, deassert /CS and wait for
-      // and IRQ indicating the chip has a response
       _assert_cs(driver, 0);
+      break;
+
+    default:
+      driver->spi_unhandled++;
       break;
   }
 
@@ -210,12 +240,18 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
 
   driver->stats.interrupts++;
 
+  driver->int_state = driver->state;
+
   switch(driver->state)
   {
     case CC3K_STATE_COMMAND_REQUEST:
       // There is a pending command in the transmit buffer, and the chip has
       // notified us that it is ready to accept the command.
-      _transition(driver, CC3K_STATE_COMMAND);
+
+      // Disable interrupts until we have finished sending the command
+      _int_enable(driver, 0);
+
+      _transition(driver, CC3K_STATE_SEND_COMMAND);
       _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, driver->packet_tx_buffer_length);
       break;
     case CC3K_STATE_DATA_REQUEST:
@@ -223,9 +259,11 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
       _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, driver->packet_tx_buffer_length);
       break;
 
+/*
     case CC3K_STATE_DATA_RX:
       cc3k_read_header(driver);
       break;
+*/
 
     case CC3K_STATE_SIMPLE_LINK_START:
       cc3k_read_header(driver);
@@ -234,12 +272,13 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
     case CC3K_STATE_DATA:
     case CC3K_STATE_COMMAND:
     case CC3K_STATE_IDLE:
+      // Disable interrupts until we have finished receiving the response
+      _int_enable(driver, 0);
+
       // The chip has a response for us. Start reading the SPI header
       cc3k_read_header(driver);
       break;
     case CC3K_STATE_INIT:
-    //case CC3K_STATE_READ_HEADER:
-    //case CC3K_STATE_READ_PAYLOAD:
       break;
     default:
       driver->stats.unhandled_interrupts++;
@@ -260,6 +299,10 @@ static cc3k_status_t _process_event(cc3k_t *driver)
 
   if(event_header->type == CC3K_PAYLOAD_TYPE_DATA)
   {
+    if(driver->config->dataCallback)
+      (*driver->config->dataCallback)();
+    driver->stats.rx++;
+    //recv_event = (cc3k_recv_event_t *)(driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t));
     // Pass the data to the socket manager
     //cc3k_recv_event(&driver->socket_manager, recv_event->sd, recv_event->length);
     return CC3K_OK;
@@ -270,30 +313,51 @@ static cc3k_status_t _process_event(cc3k_t *driver)
 
   payload = driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t) + sizeof(cc3k_command_header_t);
 
+  if(driver->config->eventCallback)
+    (*driver->config->eventCallback)(event_header->opcode, payload, event_header->argument_length);
+
   if(event_header->opcode >= 0x4100)
   {
     // Async unsolocited event
     driver->stats.unsolicited++;
+
+    // Check if we were waiting for a command before the unsolicited event arrived
+    // This will cause a transition back to the COMMAND state to wait for
+    // the response to the original command request
+    if(driver->command != 0)
+      _transition(driver, CC3K_STATE_COMMAND);
   }
   else
   {
+    cc3k_recv_event_t *recv_event;
 
     // This event should be a response to the last sent command
     //if(event_header->opcode != driver->command)
       //return CC3K_INVALID;
 
+    // This is a response to the pending command.
+    // Reset the pending command in the driver for the unsolicited event logic
+    driver->command = 0;
+
     // Handle the first simple link start command and kickoff a read_buffer_size
     switch(event_header->opcode)
     {
       case CC3K_COMMAND_SIMPLE_LINK_START:
+        cc3k_set_debug(driver, CC3K_DEBUG_MASK);
+        break;
+      case CC3K_COMMAND_NETAPP_SET_DEBUG:
         cc3k_send_command(driver, CC3K_COMMAND_READ_BUFFER_SIZE, NULL, 0);
         break;
       case CC3K_COMMAND_RECV:
       case CC3K_COMMAND_RECVFROM:
+        recv_event = (cc3k_recv_event_t *)payload;
         // We have received a response to a recv request,
         // so transition into the DATA_RX state to receive
         // the following data frame
-        _transition(driver, CC3K_STATE_DATA_RX);
+       
+        if(recv_event->length > 0) 
+          _transition(driver, CC3K_STATE_DATA_RX);
+
         break;
       default:
         break;
@@ -322,17 +386,20 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
 */
 
   driver->last_time_ms = time_ms;
-  _int_enable(driver, 0);
+  //_int_enable(driver, 0);
 
   switch(driver->state)
   {
     case CC3K_STATE_EVENT:
 
-      // Transition to the IDLE state
+      _int_enable(driver, 0);
+      // Set the default state coming out of the event handler
+      // The event handler may transition to a new state
       _transition(driver, CC3K_STATE_IDLE);
 
       // Process the event in packet_rx_buffer
       status = _process_event(driver);
+      _int_enable(driver, 1);
 
       // Check if event processing failed
       if(status != CC3K_OK)
@@ -369,12 +436,18 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
       // Do nothing
       break;
   }
-  _int_enable(driver, 1);
 
+  driver->last_state = driver->state;
+
+  //_int_enable(driver, 1);
 
   return CC3K_OK;
 }
 
+cc3k_status_t cc3k_set_debug(cc3k_t *driver, uint32_t level)
+{
+  return cc3k_send_command(driver, CC3K_COMMAND_NETAPP_SET_DEBUG, (uint8_t *)&level, sizeof(uint32_t));
+}
 
 /**
  * Chip socket command functions
@@ -408,6 +481,23 @@ cc3k_status_t cc3k_close(cc3k_t *driver, int sd)
   return cc3k_send_command(driver, CC3K_COMMAND_CLOSE, (uint8_t *)&s, sizeof(uint32_t));
 }
 
+cc3k_status_t cc3k_select(cc3k_t *driver, uint8_t maxfd, uint32_t read_fd, uint32_t write_fd, uint32_t except_fd)
+{
+  cc3k_command_select_t cmd;
+  cmd.maxfd = maxfd;
+  cmd.ca = 0x14;
+  cmd.cb = 0x14;
+  cmd.cc = 0x14;
+  cmd.cd = 0x14;
+  cmd.blocking = 0;
+  cmd.read_fd = read_fd;
+  cmd.write_fd = write_fd;
+  cmd.except_fd = except_fd;
+  cmd.timeout_sec = 0;
+  cmd.timeout_usec = 250000; 
+  return cc3k_send_command(driver, CC3K_COMMAND_SELECT, (uint8_t *)&cmd, sizeof(cc3k_command_select_t));
+}
+
 cc3k_status_t cc3k_recv(cc3k_t *driver, int sd, uint16_t length)
 {
   cc3k_command_recv_t cmd;
@@ -427,5 +517,10 @@ cc3k_status_t cc3k_sendto(cc3k_t *driver, int sd, uint8_t *payload, uint16_t pay
   arg.offset = payload_length + 8;
   arg.unused_length = 0x8;
 
-  return cc3k_send_data(driver, CC3K_DATA_SENDTO, (uint8_t *)&arg, sizeof(cc3k_data_sendto_t), payload, payload_length, sa, sizeof(cc3k_sockaddr_t));
+  return cc3k_send_data(driver,
+    CC3K_DATA_SENDTO,
+    (uint8_t *)&arg,
+    sizeof(cc3k_data_sendto_t),
+    payload, payload_length,
+    (uint8_t *)sa, sizeof(cc3k_sockaddr_t));
 }

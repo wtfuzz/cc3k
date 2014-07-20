@@ -8,6 +8,7 @@ cc3k_status_t cc3k_process_event(cc3k_t *driver, uint16_t opcode, uint8_t *arg, 
   cc3k_status_event_t *status_event;
   cc3k_socket_event_t *socket_event;
   cc3k_recv_event_t *recv_event;
+  cc3k_select_event_t *select_event;
 
   switch(opcode)
   {
@@ -50,6 +51,11 @@ cc3k_status_t cc3k_process_event(cc3k_t *driver, uint16_t opcode, uint8_t *arg, 
       break;
     case CC3K_COMMAND_ACCEPT:
       socket_event = (cc3k_socket_event_t *)arg;
+      break;
+
+    case CC3K_COMMAND_SELECT:
+      select_event = (cc3k_select_event_t *)arg;
+      cc3k_select_event(&driver->socket_manager, select_event);
       break;
 
     case CC3K_COMMAND_RECV:

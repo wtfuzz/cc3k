@@ -17,13 +17,13 @@ typedef enum _cc3k_event_opcode_t
  */
 typedef struct _cc3k_status_event_t
 {
-  uint8_t status;
+  int8_t status;
   uint32_t wlan_status;
 } __attribute__ ((packed)) cc3k_status_event_t;
 
 typedef struct _cc3k_socket_event_t
 {
-  uint8_t status;
+  int8_t status;
   uint32_t result;
 } __attribute__ ((packed)) cc3k_socket_event_t;
 
@@ -33,5 +33,13 @@ typedef struct _cc3k_recv_event_t
   int32_t length;
   uint32_t flags;
 } __attribute__ ((packed)) cc3k_recv_event_t;
+
+typedef struct _cc3k_select_event_t
+{
+  int32_t status;
+  uint32_t read_fd;
+  uint32_t write_fd;
+  uint32_t except_fd;
+} __attribute__ ((packed)) cc3k_select_event_t;
 
 #endif

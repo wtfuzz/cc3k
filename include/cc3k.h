@@ -29,6 +29,7 @@ typedef enum _cc3k_state_t
 	CC3K_STATE_INIT,              // Initial state
   CC3K_STATE_SIMPLE_LINK_START, // Initial simple link start command issued
   CC3K_STATE_COMMAND_REQUEST,   // /CS asserted, waiting for IRQ before sending command
+  CC3K_STATE_SEND_COMMAND,      // Sending a command, waiting for SPI completion
   CC3K_STATE_COMMAND,           // Sent a command, waiting for response
   CC3K_STATE_IDLE,              // Idle
   CC3K_STATE_READ_HEADER,       // CS low, IRQ received, clocking in data
@@ -61,6 +62,12 @@ typedef struct _cc3k_config_t
   void (*assertChipSelect)(int assert);
   /** @brief Synchronous SPI Send/Receive */
   void (*spiTransaction)(uint8_t *out, uint8_t *in, uint16_t length, int async);
+
+  /** @brief Event hook */
+  void (*eventCallback)(uint16_t opcode, uint8_t *data, uint16_t length);
+  void (*commandCallback)(uint16_t opcode, uint8_t *data, uint16_t length);
+  void (*dataCallback)();
+  void (*transitionCallback)(cc3k_state_t from, cc3k_state_t to);
 
 } cc3k_config_t;
 
@@ -107,6 +114,11 @@ struct _cc3k_t
 
 	/** @brief Current operational state */
 	cc3k_state_t state;
+	cc3k_state_t last_state;
+  cc3k_state_t int_state;
+
+  int spi_busy;
+  int spi_unhandled;
 
   /** @brief State of last unhandled interrupt */
   cc3k_state_t unhandled_state;
@@ -169,7 +181,10 @@ cc3k_status_t cc3k_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_
 cc3k_status_t cc3k_data(cc3k_t *driver, uint8_t opcode, uint8_t *arg, uint8_t arg_length,
   uint8_t *payload, uint16_t payload_length, uint8_t *footer, uint8_t footer_length);
 
+cc3k_status_t cc3k_set_debug(cc3k_t *driver, uint32_t level);
+
 cc3k_status_t cc3k_process_event(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t arg_length);
+cc3k_status_t cc3k_recv_event(cc3k_socket_manager_t *socket_manager, int32_t sd, int32_t length);
 
 cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms);
 

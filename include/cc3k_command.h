@@ -128,4 +128,19 @@ typedef struct _cc3k_command_recv_t
   uint32_t flags;
 } __attribute__ ((packed)) cc3k_command_recv_t;
 
+typedef struct _cc3k_command_select_t
+{
+  uint32_t maxfd;
+  uint32_t ca;
+  uint32_t cb;
+  uint32_t cc;
+  uint32_t cd;
+  uint32_t blocking;
+  uint32_t read_fd;
+  uint32_t write_fd;
+  uint32_t except_fd;
+  uint32_t timeout_sec;
+  uint32_t timeout_usec;
+} __attribute__ ((packed)) cc3k_command_select_t;
+
 #endif

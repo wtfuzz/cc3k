@@ -16,6 +16,10 @@
 #define SOCK_STREAM          1
 #define SOCK_DGRAM           2
 
+typedef struct _cc3k_socket_t cc3k_socket_t;
+
+typedef void (cc3k_data_callback_t)(cc3k_socket_t *socket, uint8_t *data, uint16_t length);
+
 typedef enum _cc3k_socket_state_t
 {
   SOCKET_STATE_INIT,        // Socket is in the initial state
@@ -27,7 +31,7 @@ typedef enum _cc3k_socket_state_t
   SOCKET_STATE_FAILED       // Failed to initialize the socket
 } cc3k_socket_state_t;
 
-typedef struct _cc3k_socket_t
+struct _cc3k_socket_t
 {
   /** @brief State of the socket */
   cc3k_socket_state_t state;
@@ -45,7 +49,9 @@ typedef struct _cc3k_socket_t
   int rx;
   int rx_bytes;
 
-} cc3k_socket_t;
+  uint8_t readable;
+
+};
 
 /**
  * @brief Socket Manager context
@@ -65,6 +71,10 @@ typedef struct _cc3k_socket_manager_t
 
   /** @brief Number of used sockets */
   int num_sockets;
+
+  /** @brief Flag to indicate if a select call is pending */
+  // TODO: Move boolean flags to a bitmask
+  uint8_t select_pending;
 
 } cc3k_socket_manager_t;
 

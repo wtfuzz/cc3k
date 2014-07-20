@@ -56,7 +56,31 @@ cc3k_status_t cc3k_bind_event(cc3k_socket_manager_t *socket_manager, uint32_t re
   return CC3K_OK;
 }
 
-cc3k_recv_event(cc3k_socket_manager_t *socket_manager, int32_t sd, int32_t length)
+cc3k_status_t cc3k_select_event(cc3k_socket_manager_t *socket_manager, cc3k_select_event_t *ev)
+{
+  cc3k_socket_t *socket;
+  int i;
+
+  socket_manager->select_pending = 0;
+
+  for(i=0;i<CC3K_MAX_SOCKETS;i++)
+  {
+    socket = socket_manager->socket[i];
+    if(socket == NULL)
+      continue;
+
+    //if(ev->read_fd & (1<<socket->sd))
+    if(ev->read_fd != 0)
+    {
+      // Socket has data to read
+      socket->readable = 1;
+    }
+  }  
+
+  return CC3K_OK;
+}
+
+cc3k_status_t cc3k_recv_event(cc3k_socket_manager_t *socket_manager, int32_t sd, int32_t length)
 {
   cc3k_socket_t *socket;
 
@@ -104,9 +128,10 @@ static void _socket_update(cc3k_socket_manager_t *socket_manager, cc3k_socket_t 
     case SOCKET_STATE_CONNECTING:
       break;
     case SOCKET_STATE_READY:
-      if(socket->type == SOCK_STREAM)
+      if(socket->type == SOCK_STREAM && socket->readable)
       {
         cc3k_recv(socket_manager->driver, socket->sd, 1000);
+        socket->readable = 0;
       }
       break;
     case SOCKET_STATE_FAILED:
@@ -133,6 +158,11 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager)
   int i;
   cc3k_socket_t *socket;
 
+  uint32_t rsd = 0;
+  uint32_t wsd = 0;
+  uint32_t esd = 0;
+  uint8_t maxsd = 0;
+
   // Update each of the registered sockets
   for(i=0;i<CC3K_MAX_SOCKETS;i++)
   {
@@ -142,11 +172,26 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager)
 
     _socket_update(socket_manager, socket);
 
-    if(socket->state == SOCKET_STATE_READY)
+
+    if(socket_manager->select_pending == 0)
     {
-      // Add the socket to the fd set for select
+      if(socket->state == SOCKET_STATE_READY)
+      {
+        // Add the socket to the fd set for select
+        rsd |= (1<<socket->sd);
+        esd |= (1<<socket->sd);
+
+        if(socket->sd > maxsd)
+          maxsd = socket->sd;
+      }
     }
   } 
+
+  if(socket_manager->select_pending == 0)
+  {
+    if(cc3k_select(socket_manager->driver, maxsd+1, rsd, wsd, esd) == CC3K_OK)
+      socket_manager->select_pending = 1;
+  }
 
   return CC3K_OK;
 }
