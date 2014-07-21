@@ -16,6 +16,7 @@
 #define CC3K_DEBUG_MASK 0x00000000
 
 static cc3k_status_t _process_event(cc3k_t *driver, uint16_t *more);
+static cc3k_status_t cc3k_read_header(cc3k_t *driver);
 
 /**
  * @brief Poll the interrupt pin and wait for it to fall
@@ -62,10 +63,17 @@ static inline void _transition(cc3k_t *driver, cc3k_state_t state)
     (*driver->config->transitionCallback)(driver->state, state);
 
 #ifdef CC3K_DEBUG
-  //fprintf(stderr, "Transition %s -> %s\n", state_names[driver->state], state_names[state]);
+  fprintf(stderr, "Transition %s -> %s\n", state_names[driver->state], state_names[state]);
 #endif
 
   driver->state = state;
+}
+
+static void _send_command(cc3k_t *driver)
+{
+  _int_enable(driver, 0);
+  _transition(driver, CC3K_STATE_SEND_COMMAND);
+  _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, driver->packet_tx_buffer_length);
 }
 
 cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t args_length)
@@ -91,8 +99,10 @@ cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, u
   // Transition into the command request state, and assert /CS
   // In this state, the ISR will be called when the chip is ready
   // to receive the command. The SPI transmissing will kickoff then.
+
   _transition(driver, CC3K_STATE_COMMAND_REQUEST);
   _assert_cs(driver, 1);
+
   return CC3K_OK;
 }
 
@@ -184,7 +194,7 @@ cc3k_status_t cc3k_wlan_connect(
   return cc3k_send_command(driver, CC3K_COMMAND_WLAN_CONNECT, (uint8_t *)&cmd, sizeof(cc3k_command_wlan_connect_t));
 }
 
-cc3k_status_t cc3k_read_header(cc3k_t *driver)
+static cc3k_status_t cc3k_read_header(cc3k_t *driver)
 {
   cc3k_spi_header_t *spi_header;
   spi_header = (cc3k_spi_header_t *)driver->packet_tx_buffer;
@@ -220,14 +230,28 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver)
       length = HI(spi_rx_header->length);
       length |= LO(spi_rx_header->length);
 
-      _transition(driver, CC3K_STATE_READ_PAYLOAD);
-      _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t) + 5, length);
+      // Check if there is more SPI packet payload to receive (we already received the 5 byte minimum)
+      if(length - 5 > 0)
+      {
+        _transition(driver, CC3K_STATE_READ_PAYLOAD);
+        _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t) + 5, length-5);
+      }
+      else
+      {
+        // Packet is complete, deselect the chip and process the event
+        _int_enable(driver, 1);
+        _assert_cs(driver, 0);
+
+        driver->stats.events++;
+        _transition(driver, CC3K_STATE_IDLE);
+        _process_event(driver, &more);
+      }
       break;
 
     case CC3K_STATE_READ_PAYLOAD:
 
-      _assert_cs(driver, 0);
       _int_enable(driver, 1);
+      _assert_cs(driver, 0);
 
       driver->stats.events++;
       _transition(driver, CC3K_STATE_IDLE);
@@ -304,9 +328,11 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
 #ifdef CC3K_DEBUG
       fprintf(stderr, "Unhandled interrupt in state %s\n", state_names[driver->state]);
 #endif
+/*
       driver->stats.unhandled_interrupts++;
       driver->unhandled_state = driver->state;
       driver->interrupt_pending = 1;
+*/
       break;
   }
 
@@ -332,9 +358,6 @@ static cc3k_status_t _process_event(cc3k_t *driver, uint16_t *more)
 #ifdef CC3K_DEBUG
     fprintf(stderr, "Received %d\n", driver->stats.rx);
 #endif
-    //recv_event = (cc3k_recv_event_t *)(driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t));
-    // Pass the data to the socket manager
-    //cc3k_recv_event(&driver->socket_manager, recv_event->sd, recv_event->length);
     return CC3K_OK;
   }
 
@@ -363,6 +386,9 @@ static cc3k_status_t _process_event(cc3k_t *driver, uint16_t *more)
     // Check if we were waiting for a command before the unsolicited event arrived
     // This will cause a transition back to the COMMAND state to wait for
     // the response to the original command request
+
+    // We remain in this state to prevent other commands from being sent until this one
+    // has completed. We *might* be able to interleave some commands but will leave that for later
     if(driver->command != 0)
       _transition(driver, CC3K_STATE_COMMAND);
 
@@ -378,7 +404,9 @@ static cc3k_status_t _process_event(cc3k_t *driver, uint16_t *more)
 
     // This is a response to the pending command.
     // Reset the pending command in the driver for the unsolicited event logic
-    driver->command = 0;
+
+    if(event_header->opcode == driver->command)
+      driver->command = 0;
 
     if(event_header->opcode == CC3K_COMMAND_RECV ||
        event_header->opcode == CC3K_COMMAND_RECVFROM)
@@ -440,39 +468,7 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
 
   switch(driver->state)
   {
-#if 0
-    case CC3K_STATE_EVENT:
-      //_int_enable(driver, 0);
-      // Set the default state coming out of the event handler
-      // The event handler may transition to a new state
-      _transition(driver, CC3K_STATE_IDLE);
-
-      // Process the event in packet_rx_buffer
-      //status = _process_event(driver);
-
-#ifdef CC3K_DEBUG
-      fprintf(stderr, "Enabling interrupts after event processing\n");
-#endif
-      _int_enable(driver, 1);
-
-      // Check if event processing failed
-      if(status != CC3K_OK)
-        return status;
-
-      break;
-#endif
-
     case CC3K_STATE_IDLE:
-      // Check if there is a pending interrupt
-/*
-      if(driver->interrupt_pending)
-      {
-        cc3k_read_header(driver);
-        driver->interrupt_pending = 0;
-        break;
-      }
-*/
-
       // Check timer
       if( (time_ms - driver->last_update > 2000))
       {
