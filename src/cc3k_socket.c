@@ -106,13 +106,13 @@ cc3k_status_t cc3k_select_event(cc3k_socket_manager_t *socket_manager, cc3k_sele
     if(socket == NULL)
       continue;
 
-    if(ev->read_fd & (1<<8-socket->sd))
+    if(ev->read_fd & (1<<(8-socket->sd)))
     {
       // Socket has data to read
       socket->readable = 1;
     }
 
-    if(ev->except_fd & (1<<8-socket->sd))
+    if(ev->except_fd & (1<<(8-socket->sd)))
     {
       // Socket closed
 #ifdef CC3K_DEBUG
