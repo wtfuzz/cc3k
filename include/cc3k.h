@@ -90,6 +90,8 @@ typedef struct _cc3k_stats_t
   uint32_t socket_reads;
   uint32_t tx;
   uint32_t rx;
+  uint32_t bytes_tx;
+  uint32_t bytes_rx;
 } cc3k_stats_t;
 
 /**

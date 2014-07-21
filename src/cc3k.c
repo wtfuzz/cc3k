@@ -15,7 +15,7 @@
 // on the 1.8v UART pins. These are not accessible on the Spark
 #define CC3K_DEBUG_MASK 0x00000000
 
-static cc3k_status_t _process_event(cc3k_t *driver, uint16_t *more);
+static cc3k_status_t _process_event(cc3k_t *driver);
 static cc3k_status_t cc3k_read_header(cc3k_t *driver);
 
 /**
@@ -211,7 +211,6 @@ static cc3k_status_t cc3k_read_header(cc3k_t *driver)
 cc3k_status_t cc3k_spi_done(cc3k_t *driver)
 {
   uint16_t length;
-  uint16_t more = 0;
   cc3k_spi_rx_header_t *spi_rx_header;
 
   // Called when an SPI transfer is complete
@@ -244,7 +243,7 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver)
 
         driver->stats.events++;
         _transition(driver, CC3K_STATE_IDLE);
-        _process_event(driver, &more);
+        _process_event(driver);
       }
       break;
 
@@ -255,7 +254,7 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver)
 
       driver->stats.events++;
       _transition(driver, CC3K_STATE_IDLE);
-      _process_event(driver, &more);
+      _process_event(driver);
       break;
 
     case CC3K_STATE_SEND_COMMAND:
@@ -314,6 +313,7 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
       break;
 
     case CC3K_STATE_DATA:
+    case CC3K_STATE_DATA_RX:
     case CC3K_STATE_COMMAND:
     case CC3K_STATE_IDLE:
       // Disable interrupts until we have finished receiving the response
@@ -339,7 +339,7 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
 	return CC3K_OK;
 }
 
-static cc3k_status_t _process_event(cc3k_t *driver, uint16_t *more)
+static cc3k_status_t _process_event(cc3k_t *driver)
 {
   cc3k_command_header_t *event_header;
   uint8_t *payload;
@@ -352,11 +352,20 @@ static cc3k_status_t _process_event(cc3k_t *driver, uint16_t *more)
 
   if(event_header->type == CC3K_PAYLOAD_TYPE_DATA)
   {
+    cc3k_data_header_t *data_header;
+    data_header = (cc3k_data_header_t *)data_header;
+
+    uint16_t size;
+    size = HI(data_header->payload_length);
+    size |= LO(data_header->payload_length);
+
     if(driver->config->dataCallback)
       (*driver->config->dataCallback)();
     driver->stats.rx++;
+    driver->stats.bytes_rx += size;
 #ifdef CC3K_DEBUG
-    fprintf(stderr, "Received %d\n", driver->stats.rx);
+    fprintf(stderr, "Bytes %d\n", size);
+    fprintf(stderr, "Received %d packets %d bytes\n", driver->stats.rx, driver->stats.bytes_rx);
 #endif
     return CC3K_OK;
   }
@@ -412,14 +421,11 @@ static cc3k_status_t _process_event(cc3k_t *driver, uint16_t *more)
        event_header->opcode == CC3K_COMMAND_RECVFROM)
     {
       recv_event = (cc3k_recv_event_t *)payload;
-      // We have received a response to a recv request,
-
-      *more = HI(recv_event->length);
-      *more |= LO(recv_event->length);
-
 #ifdef CC3K_DEBUG
-      fprintf(stderr, "Recv %d len %d flags 0x%08X\n", recv_event->sd, *more, recv_event->flags);
+      fprintf(stderr, "Recv %d len %d flags 0x%08X\n", recv_event->sd, recv_event->length, recv_event->flags);
 #endif
+  
+      _transition(driver, CC3K_STATE_DATA_RX);
 
       return CC3K_OK;
 
