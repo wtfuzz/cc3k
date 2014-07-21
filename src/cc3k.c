@@ -353,7 +353,7 @@ static cc3k_status_t _process_event(cc3k_t *driver)
   if(event_header->type == CC3K_PAYLOAD_TYPE_DATA)
   {
     cc3k_data_header_t *data_header;
-    data_header = (cc3k_data_header_t *)data_header;
+    data_header = (cc3k_data_header_t *)event_header;
 
     uint16_t size;
     size = HI(data_header->payload_length);
