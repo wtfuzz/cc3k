@@ -177,7 +177,7 @@ cc3k_status_t cc3k_read_header(cc3k_t *driver)
 
   _transition(driver, CC3K_STATE_READ_HEADER);
   _assert_cs(driver, 1);
-  _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, 5);
+  _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, 10);
   return CC3K_OK;
 }
 
@@ -203,7 +203,7 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver)
       length |= LO(spi_rx_header->length);
 
       _transition(driver, CC3K_STATE_READ_PAYLOAD);
-      _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t), length);
+      _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer + sizeof(cc3k_spi_rx_header_t) + 5, length);
       break;
 
     case CC3K_STATE_READ_PAYLOAD:
