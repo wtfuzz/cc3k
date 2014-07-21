@@ -50,6 +50,8 @@ cc3k_status_t cc3k_connect_event(cc3k_socket_manager_t *socket_manager, uint32_t
   else
   {
     // Connection failed
+    // TODO: Configurable retry timeout
+    socket_manager->current->retry_timeout = 1000;
     socket_manager->current->state = SOCKET_STATE_FAILED;
 #ifdef CC3K_DEBUG
     fprintf(stderr, "Socket %d connection failed\n", socket_manager->current->sd);
@@ -138,7 +140,7 @@ cc3k_status_t cc3k_recv_event(cc3k_socket_manager_t *socket_manager, int32_t sd,
   return CC3K_OK;
 }
 
-static void _socket_update(cc3k_socket_manager_t *socket_manager, cc3k_socket_t *socket)
+static void _socket_update(cc3k_socket_manager_t *socket_manager, cc3k_socket_t *socket, uint32_t dt)
 {
   switch(socket->state)
   {
@@ -176,8 +178,20 @@ static void _socket_update(cc3k_socket_manager_t *socket_manager, cc3k_socket_t 
         socket->readable = 0;
       }
       break;
-    case SOCKET_STATE_CLOSE_WAIT:
     case SOCKET_STATE_FAILED:
+      if(dt >= socket->retry_timeout)
+      {
+        // Transition out
+        socket->retry_timeout = 0;
+        socket->state = SOCKET_STATE_INIT;
+      } 
+      else
+      {
+        // Decrement time remaining
+        socket->retry_timeout -= dt;
+      }
+      break;
+    case SOCKET_STATE_CLOSE_WAIT:
       // Close the socket
       if(cc3k_close(socket_manager->driver, socket->sd) == CC3K_OK)
       {
@@ -196,7 +210,7 @@ cc3k_status_t cc3k_socket_manager_init(cc3k_t *driver, cc3k_socket_manager_t *so
   return CC3K_OK;
 }
 
-cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager)
+cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager, uint32_t dt)
 {
   int i;
   cc3k_socket_t *socket;
@@ -205,6 +219,7 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager)
   uint32_t wsd = 0;
   uint32_t esd = 0;
   uint8_t maxsd = 0;
+  uint8_t count = 0;
 
   // Update each of the registered sockets
   for(i=0;i<CC3K_MAX_SOCKETS;i++)
@@ -213,7 +228,7 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager)
     if(socket == NULL)
       continue;
 
-    _socket_update(socket_manager, socket);
+    _socket_update(socket_manager, socket, dt);
 
     if(socket_manager->select_pending == 0)
     {
@@ -225,14 +240,19 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager)
 
         if(socket->sd > maxsd)
           maxsd = socket->sd;
+
+        count++;
       }
     }
   } 
 
   if(socket_manager->select_pending == 0)
   {
-    if(cc3k_select(socket_manager->driver, maxsd+1, rsd, wsd, esd) == CC3K_OK)
-      socket_manager->select_pending = 1;
+    if(count > 0)
+    {
+      if(cc3k_select(socket_manager->driver, maxsd+1, rsd, wsd, esd) == CC3K_OK)
+        socket_manager->select_pending = 1;
+    }
   }
 
   return CC3K_OK;

@@ -41,6 +41,13 @@ typedef enum _cc3k_state_t
   CC3K_STATE_DATA_RX,           // Receiving a data frame
 } cc3k_state_t;
 
+#ifdef CC3K_DEBUG
+static const char *state_names[] = {
+  "INIT", "SIMPLE_LINK_START", "COMMAND_REQUEST", "SEND_COMMAND", "COMMAND", "IDLE",
+  "READ_HEADER", "READ_PAYLOAD", "EVENT", "DATA_REQUEST", "DATA", "DATA_RX_REQUEST", "DATA_RX"
+};
+#endif
+
 /**
  * @brief Driver configuration
  *

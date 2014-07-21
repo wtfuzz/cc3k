@@ -37,6 +37,9 @@ struct _cc3k_socket_t
   /** @brief State of the socket */
   cc3k_socket_state_t state;
 
+  /** @brief Milliseconds reamining before retrying */
+  uint32_t retry_timeout;
+
   /** @brief Socket descriptor returned by the chip */
   uint32_t sd;
 
@@ -80,7 +83,7 @@ typedef struct _cc3k_socket_manager_t
 } cc3k_socket_manager_t;
 
 cc3k_status_t cc3k_socket_manager_init(cc3k_t *driver, cc3k_socket_manager_t *socket_manager);
-cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager);
+cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager, uint32_t dt);
 
 cc3k_status_t cc3k_socket_add(cc3k_t *driver, cc3k_socket_t *socket);
 
