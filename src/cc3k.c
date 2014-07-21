@@ -106,15 +106,17 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
   _chip_enable(driver, 0);
   (*config->delayMicroseconds)(100000); 
   _chip_enable(driver, 1);
-  (*config->delayMicroseconds)(100000); 
+  (*config->delayMicroseconds)(10000); 
 
   // Wait for the interrupt line to fall after enabling the chip
   _interrupt_poll_wait(driver);
+
+  // Delay before asserting the CS line
+  (*config->delayMicroseconds)(10000);
   _assert_cs(driver, 1);
 
-
   // The first command sent to the chip is different than the rest, so we will
-  // handle it manually here with asynchronous SPI calls.
+  // handle it manually here with synchronous SPI calls.
   // This will send a CC3K_COMMAND_SIMPLE_LINK_START packet
 
   // Construct the command packet in the transmit buffer
@@ -125,7 +127,7 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
   // Send the first 4 bytes of the SPI header
   _spi_sync(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, 4);
   // Delay for 50uS
-  (*config->delayMicroseconds)(50); 
+  (*config->delayMicroseconds)(500); 
   // Send the remaining 6 bytes of the COMMAND_SIMPLE_LINK_START packet
   _spi_sync(driver, driver->packet_tx_buffer+4, driver->packet_rx_buffer + 4, 6);
 
@@ -494,8 +496,8 @@ cc3k_status_t cc3k_select(cc3k_t *driver, uint8_t maxfd, uint32_t read_fd, uint3
   cmd.read_fd = read_fd;
   cmd.write_fd = write_fd;
   cmd.except_fd = except_fd;
-  cmd.timeout_sec = 0;
-  cmd.timeout_usec = 250000; 
+  cmd.timeout_sec = 1;
+  cmd.timeout_usec = 0; //250000; 
   return cc3k_send_command(driver, CC3K_COMMAND_SELECT, (uint8_t *)&cmd, sizeof(cc3k_command_select_t));
 }
 

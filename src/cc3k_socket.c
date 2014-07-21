@@ -7,6 +7,10 @@
 #include <socket.h>
 #include <string.h>
 
+#ifdef CC3K_DEBUG
+#include <stdio.h>
+#endif
+
 static cc3k_status_t _find_socket(cc3k_socket_manager_t *socket_manager, int32_t sd, cc3k_socket_t **socket)
 {
   int i;
@@ -27,6 +31,9 @@ cc3k_status_t cc3k_socket_event(cc3k_socket_manager_t *socket_manager, uint32_t 
 {
   socket_manager->current->sd = sd;
   socket_manager->current->state = SOCKET_STATE_CREATED;
+#ifdef CC3K_DEBUG
+  fprintf(stderr, "Socket %d created\n", sd);
+#endif
   return CC3K_OK;
 }
 
@@ -36,19 +43,47 @@ cc3k_status_t cc3k_connect_event(cc3k_socket_manager_t *socket_manager, uint32_t
   {
     // Successfully connected
     socket_manager->current->state = SOCKET_STATE_READY;
+#ifdef CC3K_DEBUG
+    fprintf(stderr, "Socket %d connected\n", socket_manager->current->sd);
+#endif
   }
   else
   {
     // Connection failed
     socket_manager->current->state = SOCKET_STATE_FAILED;
+#ifdef CC3K_DEBUG
+    fprintf(stderr, "Socket %d connection failed\n", socket_manager->current->sd);
+#endif
   }    
 
   return CC3K_OK;
 }
 
+cc3k_status_t cc3k_tcp_close_wait_event(cc3k_socket_manager_t *socket_manager, cc3k_tcp_close_wait_event_t *ev)
+{
+  cc3k_socket_t *socket;
+
+#ifdef CC3K_DEBUG
+  fprintf(stderr, "Socket %d close wait event\n", ev->sd);
+#endif
+
+  // Find the socket
+  _find_socket(socket_manager, ev->sd, &socket);
+  if(socket == NULL)
+    return CC3K_INVALID;
+
+  socket->state = SOCKET_STATE_CLOSE_WAIT;
+  
+  return CC3K_OK;
+}
+
 cc3k_status_t cc3k_close_event(cc3k_socket_manager_t *socket_manager, uint32_t result)
 {
+#ifdef CC3K_DEBUG
+  fprintf(stderr, "Socket closed %d\n", result);
+#endif
   socket_manager->current->state = SOCKET_STATE_INIT;
+  return CC3K_OK;
 }
 
 cc3k_status_t cc3k_bind_event(cc3k_socket_manager_t *socket_manager, uint32_t result)
@@ -69,11 +104,18 @@ cc3k_status_t cc3k_select_event(cc3k_socket_manager_t *socket_manager, cc3k_sele
     if(socket == NULL)
       continue;
 
-    //if(ev->read_fd & (1<<socket->sd))
-    if(ev->read_fd != 0)
+    if(ev->read_fd & (1<<8-socket->sd))
     {
       // Socket has data to read
       socket->readable = 1;
+    }
+
+    if(ev->except_fd & (1<<8-socket->sd))
+    {
+      // Socket closed
+#ifdef CC3K_DEBUG
+      fprintf(stderr, "Socket %d closed\n", socket->sd);
+#endif
     }
   }  
 
@@ -134,6 +176,7 @@ static void _socket_update(cc3k_socket_manager_t *socket_manager, cc3k_socket_t 
         socket->readable = 0;
       }
       break;
+    case SOCKET_STATE_CLOSE_WAIT:
     case SOCKET_STATE_FAILED:
       // Close the socket
       if(cc3k_close(socket_manager->driver, socket->sd) == CC3K_OK)
@@ -171,7 +214,6 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager)
       continue;
 
     _socket_update(socket_manager, socket);
-
 
     if(socket_manager->select_pending == 0)
     {

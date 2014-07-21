@@ -63,6 +63,10 @@ cc3k_status_t cc3k_process_event(cc3k_t *driver, uint16_t opcode, uint8_t *arg, 
       recv_event = (cc3k_recv_event_t *)arg;
       //cc3k_recv_event(&driver->socket_manager, recv_event->sd, recv_event->length); 
       break;
+
+    case CC3K_EVENT_TCP_CLOSE_WAIT:
+      cc3k_tcp_close_wait_event(&driver->socket_manager, (cc3k_tcp_close_wait_event_t *)arg);
+      break;
   }
 
   return CC3K_OK;

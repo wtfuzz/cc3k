@@ -42,4 +42,10 @@ typedef struct _cc3k_select_event_t
   uint32_t except_fd;
 } __attribute__ ((packed)) cc3k_select_event_t;
 
+typedef struct _cc3k_tcp_close_wait_event_t
+{
+  int8_t status;
+  uint32_t sd;
+} __attribute__ ((packed)) cc3k_tcp_close_wait_event_t;
+
 #endif

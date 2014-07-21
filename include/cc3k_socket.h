@@ -27,7 +27,8 @@ typedef enum _cc3k_socket_state_t
   SOCKET_STATE_CREATED,     // Socket has been created, socket descriptor is valid
   SOCKET_STATE_CONNECTING,  // Socket is waiting for a connect response
   SOCKET_STATE_READY,       // Socket is established
-  SOCKET_STATE_CLOSING,     // Socket is waitinf for close response
+  SOCKET_STATE_CLOSING,     // Socket is waiting for close response
+  SOCKET_STATE_CLOSE_WAIT,  // Socket received close wait event, closing this side 
   SOCKET_STATE_FAILED       // Failed to initialize the socket
 } cc3k_socket_state_t;
 

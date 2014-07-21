@@ -185,6 +185,7 @@ cc3k_status_t cc3k_set_debug(cc3k_t *driver, uint32_t level);
 
 cc3k_status_t cc3k_process_event(cc3k_t *driver, uint16_t opcode, uint8_t *arg, uint8_t arg_length);
 cc3k_status_t cc3k_recv_event(cc3k_socket_manager_t *socket_manager, int32_t sd, int32_t length);
+cc3k_status_t cc3k_tcp_close_wait_event(cc3k_socket_manager_t *socket_manager, cc3k_tcp_close_wait_event_t *ev);
 
 cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms);
 

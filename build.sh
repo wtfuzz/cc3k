@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CFLAGS=-Iinclude
+CFLAGS="$CFLAGS -Iinclude"
 
 for i in src/*.c; do
 	gcc $CFLAGS -c $i
