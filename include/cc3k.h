@@ -128,6 +128,7 @@ struct _cc3k_t
 
   int spi_busy;
   int spi_unhandled;
+  int irq_preempt;
 
   /** @brief State of last unhandled interrupt */
   cc3k_state_t unhandled_state;

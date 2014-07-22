@@ -71,7 +71,6 @@ static inline void _transition(cc3k_t *driver, cc3k_state_t state)
 
 static void _send_command(cc3k_t *driver)
 {
-  _int_enable(driver, 0);
   _transition(driver, CC3K_STATE_SEND_COMMAND);
   _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, driver->packet_tx_buffer_length);
 }
@@ -99,6 +98,14 @@ cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, u
   // Transition into the command request state, and assert /CS
   // In this state, the ISR will be called when the chip is ready
   // to receive the command. The SPI transmissing will kickoff then.
+
+  if((*driver->config->readInterrupt)() == 0)
+  {
+    // The IRQ line is low before asserting CS
+    driver->irq_preempt++;
+    _int_enable(driver, 1);
+    return CC3K_BUSY;
+  }
 
   _transition(driver, CC3K_STATE_COMMAND_REQUEST);
   _assert_cs(driver, 1);
@@ -296,12 +303,7 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
     case CC3K_STATE_COMMAND_REQUEST:
       // There is a pending command in the transmit buffer, and the chip has
       // notified us that it is ready to accept the command.
-
-      // Disable interrupts until we have finished sending the command
-      _int_enable(driver, 0);
-
-      _transition(driver, CC3K_STATE_SEND_COMMAND);
-      _spi(driver, driver->packet_tx_buffer, driver->packet_rx_buffer, driver->packet_tx_buffer_length);
+      _send_command(driver);
       break;
     case CC3K_STATE_DATA_REQUEST:
       _transition(driver, CC3K_STATE_DATA);
