@@ -85,6 +85,8 @@ cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, u
   fprintf(stderr, "Sending command 0x%04X\n", opcode);
 #endif
 
+  _int_enable(driver, 0);
+
   if(driver->config->commandCallback)
     (*driver->config->commandCallback)(opcode, arg, args_length);
 
@@ -103,11 +105,13 @@ cc3k_status_t cc3k_send_command(cc3k_t *driver, uint16_t opcode, uint8_t *arg, u
   {
     // The IRQ line is low before asserting CS
     driver->irq_preempt++;
+    driver->command = 0;
     _int_enable(driver, 1);
     return CC3K_BUSY;
   }
 
   _transition(driver, CC3K_STATE_COMMAND_REQUEST);
+  _int_enable(driver, 1);
   _assert_cs(driver, 1);
 
   return CC3K_OK;
@@ -357,16 +361,12 @@ static cc3k_status_t _process_event(cc3k_t *driver)
     cc3k_data_header_t *data_header;
     data_header = (cc3k_data_header_t *)event_header;
 
-    uint16_t size;
-    size = HI(data_header->payload_length);
-    size |= LO(data_header->payload_length);
-
     if(driver->config->dataCallback)
       (*driver->config->dataCallback)();
     driver->stats.rx++;
-    driver->stats.bytes_rx += size;
+    driver->stats.bytes_rx += data_header->payload_length;
 #ifdef CC3K_DEBUG
-    fprintf(stderr, "Bytes %d\n", size);
+    fprintf(stderr, "Bytes %d\n", data_header->payload_length);
     fprintf(stderr, "Received %d packets %d bytes\n", driver->stats.rx, driver->stats.bytes_rx);
 #endif
     return CC3K_OK;
@@ -498,8 +498,6 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
     cc3k_socket_manager_loop(&driver->socket_manager, dt);
 
   driver->last_state = driver->state;
-
-  //_int_enable(driver, 1);
 
   return CC3K_OK;
 }
