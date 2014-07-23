@@ -7,8 +7,14 @@
 #ifndef _SOCKET_H_
 #define _SOCKET_H_
 
-#include <inttypes.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+#include <inttypes.h>
+#include <cc3k_socket.h>
+
+/*
 #define  AF_INET                2
 #define  AF_INET6               23
 
@@ -17,6 +23,7 @@
 
 #define  SOCK_STREAM            1
 #define  SOCK_DGRAM             2
+*/
 
 typedef unsigned long socklen_t;
 
@@ -38,5 +45,9 @@ int sendto(int socket, const void *buf, int len, int flags,
 
 int recv(int socket, void *buf, int len, int flags);
 int gethostbyname(char* hostname, int length, uint32_t* ip);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

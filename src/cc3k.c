@@ -533,6 +533,16 @@ cc3k_status_t cc3k_connect(cc3k_t *driver, int sd, cc3k_sockaddr_t *sa)
   return cc3k_send_command(driver, CC3K_COMMAND_CONNECT, (uint8_t *)&cmd, sizeof(cc3k_command_connect_t));
 }
 
+cc3k_status_t cc3k_bind(cc3k_t *driver, int sd, cc3k_sockaddr_t *sa)
+{
+  cc3k_command_bind_t cmd;
+  cmd.sd = sd;
+  cmd.unk = 0x8;
+  cmd.addr_length = sizeof(cc3k_sockaddr_t);
+  cmd.addr = *sa;
+  return cc3k_send_command(driver, CC3K_COMMAND_BIND, (uint8_t *)&cmd, sizeof(cc3k_command_bind_t)); 
+}
+
 cc3k_status_t cc3k_close(cc3k_t *driver, int sd)
 {
   uint32_t s = sd;
@@ -580,6 +590,15 @@ cc3k_status_t cc3k_recv(cc3k_t *driver, int sd, uint16_t length)
   cmd.length = length;
   cmd.flags = 0;
   return cc3k_send_command(driver, CC3K_COMMAND_RECV, (uint8_t *)&cmd, sizeof(cc3k_command_recv_t)); 
+}
+
+cc3k_status_t cc3k_recvfrom(cc3k_t *driver, int sd, uint16_t length)
+{
+  cc3k_command_recv_t cmd;
+  cmd.sd = sd;
+  cmd.length = length;
+  cmd.flags = 0;
+  return cc3k_send_command(driver, CC3K_COMMAND_RECVFROM, (uint8_t *)&cmd, sizeof(cc3k_command_recv_t)); 
 }
 
 cc3k_status_t cc3k_sendto(cc3k_t *driver, int sd, uint8_t *payload, uint16_t payload_length, cc3k_sockaddr_t *sa)

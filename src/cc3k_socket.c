@@ -90,6 +90,10 @@ cc3k_status_t cc3k_close_event(cc3k_socket_manager_t *socket_manager, uint32_t r
 
 cc3k_status_t cc3k_bind_event(cc3k_socket_manager_t *socket_manager, uint32_t result)
 {
+  if(socket_manager->current->type == SOCK_STREAM)
+    socket_manager->current->state = SOCKET_STATE_BOUND;
+  else
+    socket_manager->current->state = SOCKET_STATE_READY;
   return CC3K_OK;
 }
 
@@ -156,11 +160,10 @@ static void _socket_update(cc3k_socket_manager_t *socket_manager, cc3k_socket_t 
       // Waiting for chip to respond with a descriptor
       break;
     case SOCKET_STATE_CREATED:
-      // Socket is ready, descriptor is valid
+      // Socket descriptor is valid
 
       // If this is a TCP client socket, connect to the endpoint
-     
-      if(socket->type == SOCK_STREAM)
+      if(socket->type == SOCK_STREAM && socket->bind == 0)
       { 
         if(cc3k_connect(socket_manager->driver, socket->sd, &socket->sockaddr) == CC3K_OK)
         {
@@ -168,13 +171,32 @@ static void _socket_update(cc3k_socket_manager_t *socket_manager, cc3k_socket_t 
           socket->state = SOCKET_STATE_CONNECTING;
         }
       }
+      else if(socket->type == SOCK_DGRAM && socket->bind == 1)
+      {
+        if(cc3k_bind(socket_manager->driver, socket->sd, &socket->sockaddr) == CC3K_OK)
+        {
+          socket_manager->current = socket;
+          socket->state = SOCKET_STATE_BINDING;
+        }
+      }
+      else
+      {
+        // No transition for this socket configuration
+        socket->state = SOCKET_STATE_FAILED;
+      }
+
       break;
     case SOCKET_STATE_CONNECTING:
       break;
     case SOCKET_STATE_READY:
       if(socket->type == SOCK_STREAM && socket->readable)
       {
-        cc3k_recv(socket_manager->driver, socket->sd, 1000);
+        cc3k_recv(socket_manager->driver, socket->sd, 1500);
+        socket->readable = 0;
+      }
+      else if(socket->type == SOCK_DGRAM && socket->readable)
+      {
+        cc3k_recvfrom(socket_manager->driver, socket->sd, 1500);
         socket->readable = 0;
       }
       break;
@@ -232,7 +254,7 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager, ui
 
     if(socket_manager->select_pending == 0)
     {
-      if(socket->state == SOCKET_STATE_READY)
+      if(socket->state == SOCKET_STATE_READY && socket->readable == 0)
       {
         // Add the socket to the fd set for select
         rsd |= (1<<socket->sd);
@@ -281,5 +303,22 @@ cc3k_status_t cc3k_socket_write(cc3k_socket_t *socket, uint8_t *data, int length
     case SOCK_DGRAM:
       break;
   }
+  return CC3K_OK;
+}
+
+cc3k_status_t cc3k_socket_init(cc3k_socket_t *socket, cc3k_socket_type_t type)
+{
+  bzero(socket, sizeof(cc3k_socket_t));
+  socket->family = AF_INET;
+  socket->type = type;
+  socket->protocol = (type == SOCK_STREAM ? IPPROTO_TCP : IPPROTO_UDP);
+  return CC3K_OK;
+}
+
+cc3k_status_t cc3k_socket_bind(cc3k_socket_t *socket, cc3k_sockaddr_t *sa)
+{
+  // Mark the socket as a server socket
+  socket->bind = 1;
+  socket->sockaddr = *sa;
   return CC3K_OK;
 }

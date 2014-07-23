@@ -9,6 +9,8 @@
 
 #include <inttypes.h>
 
+typedef struct _cc3k_t cc3k_t;
+
 typedef enum _cc3k_status_t
 {
 	CC3K_OK,
