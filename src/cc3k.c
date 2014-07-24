@@ -419,20 +419,6 @@ static cc3k_status_t _process_event(cc3k_t *driver)
     if(event_header->opcode == driver->command)
       driver->command = 0;
 
-    if(event_header->opcode == CC3K_COMMAND_RECV ||
-       event_header->opcode == CC3K_COMMAND_RECVFROM)
-    {
-      recv_event = (cc3k_recv_event_t *)payload;
-#ifdef CC3K_DEBUG
-      fprintf(stderr, "Recv %d len %d flags 0x%08X\n", recv_event->sd, recv_event->length, recv_event->flags);
-#endif
-  
-      _transition(driver, CC3K_STATE_DATA_RX);
-
-      return CC3K_OK;
-
-    }
-
     _assert_cs(driver, 0);
 
     // Handle the first simple link start command and kickoff a read_buffer_size
@@ -446,6 +432,18 @@ static cc3k_status_t _process_event(cc3k_t *driver)
         break;
       case CC3K_COMMAND_READ_BUFFER_SIZE:
         cc3k_wlan_connect(driver, CC3K_SEC_WPA2, SSID, strlen(SSID), KEY, strlen(KEY));
+        break;
+      case CC3K_COMMAND_RECV:
+      case CC3K_COMMAND_RECVFROM:
+        recv_event = (cc3k_recv_event_t *)payload;
+
+#ifdef CC3K_DEBUG
+        fprintf(stderr, "Recv %d len %d flags 0x%08X\n", recv_event->sd, recv_event->length, recv_event->flags);
+#endif
+
+        if(recv_event->length > 0)
+          _transition(driver, CC3K_STATE_DATA_RX);
+
         break;
       default:
         break;
@@ -496,6 +494,14 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
   if( (driver->wlan_status == WLAN_STATUS_CONNECTED) &&
       (driver->dhcp_complete == 1) )
     cc3k_socket_manager_loop(&driver->socket_manager, dt);
+
+  // Ugly temporary hack to reconnect. If we previously received DHCP but are now disconnected
+  if((driver->wlan_status == WLAN_STATUS_DISCONNECTED) &&
+    (driver->dhcp_complete == 1))
+  {
+    if(cc3k_wlan_connect(driver, CC3K_SEC_WPA2, SSID, strlen(SSID), KEY, strlen(KEY)) == CC3K_OK)
+      driver->dhcp_complete = 0;
+  }
 
   driver->last_state = driver->state;
 

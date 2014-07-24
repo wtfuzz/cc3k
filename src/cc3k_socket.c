@@ -27,6 +27,32 @@ static cc3k_status_t _find_socket(cc3k_socket_manager_t *socket_manager, int32_t
  * These are called from the event processor when a socket event is received
  * The current socket index associated with this event is stored in the socket manager
  */
+
+cc3k_status_t cc3k_link_event(cc3k_socket_manager_t *socket_manager, cc3k_link_state_t link)
+{
+  int i;
+
+  switch(link)
+  {
+    case CC3K_LINK_DOWN:
+      // Destroy all of the sockets
+      for(i=0;i<CC3K_MAX_SOCKETS;i++)
+      {
+        if(socket_manager->socket[i] != NULL)
+        {
+          socket_manager->socket[i]->state = SOCKET_STATE_CLOSE_WAIT;
+        }
+      }
+      
+      break;
+    case CC3K_LINK_UP:
+      // Nothing to do here yet
+      break;
+  }
+
+  return CC3K_OK;
+}
+
 cc3k_status_t cc3k_socket_event(cc3k_socket_manager_t *socket_manager, uint32_t sd)
 {
   socket_manager->current->sd = sd;
@@ -122,6 +148,8 @@ cc3k_status_t cc3k_select_event(cc3k_socket_manager_t *socket_manager, cc3k_sele
 #ifdef CC3K_DEBUG
       fprintf(stderr, "Socket %d closed\n", socket->sd);
 #endif
+
+      socket->state = SOCKET_STATE_INIT;
     }
   }  
 
@@ -252,9 +280,9 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager, ui
 
     _socket_update(socket_manager, socket, dt);
 
-    if(socket_manager->select_pending == 0)
-    {
-      if(socket->state == SOCKET_STATE_READY && socket->readable == 0)
+    //if(socket_manager->select_pending == 0)
+    //{
+      if(socket->state == SOCKET_STATE_READY)
       {
         // Add the socket to the fd set for select
         rsd |= (1<<socket->sd);
@@ -265,7 +293,7 @@ cc3k_status_t cc3k_socket_manager_loop(cc3k_socket_manager_t *socket_manager, ui
 
         count++;
       }
-    }
+    //}
   } 
 
   if(socket_manager->select_pending == 0)

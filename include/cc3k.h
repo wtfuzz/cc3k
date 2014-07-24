@@ -41,6 +41,12 @@ typedef enum _cc3k_state_t
   CC3K_STATE_DATA_RX,           // Receiving a data frame
 } cc3k_state_t;
 
+typedef enum _cc3k_link_state_t
+{
+  CC3K_LINK_DOWN,
+  CC3K_LINK_UP
+} cc3k_link_state_t;
+
 #ifdef CC3K_DEBUG
 static const char *state_names[] = {
   "INIT", "SIMPLE_LINK_START", "COMMAND_REQUEST", "SEND_COMMAND", "COMMAND", "IDLE",
