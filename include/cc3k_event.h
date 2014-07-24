@@ -21,6 +21,15 @@ typedef struct _cc3k_status_event_t
   uint32_t wlan_status;
 } __attribute__ ((packed)) cc3k_status_event_t;
 
+/**
+ * @brief Response to CC3K_WLAN_CONNECT command
+ */
+typedef struct _cc3k_wlan_connect_event_t
+{
+  int8_t status;
+  int32_t result;
+} __attribute__ ((packed)) cc3k_wlan_connect_event_t;
+
 typedef struct _cc3k_socket_event_t
 {
   int8_t status;

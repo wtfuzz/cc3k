@@ -29,11 +29,13 @@ cc3k_status_t cc3k_process_event(cc3k_t *driver, uint16_t opcode, uint8_t *arg, 
       break;
 
     case CC3K_EVENT_WLAN_CONNECT:
+      driver->wlan_status = WLAN_STATUS_CONNECTED;
       // Link layer is up
       cc3k_link_event(&driver->socket_manager, CC3K_LINK_UP);
       break;
     
     case CC3K_EVENT_WLAN_DISCONNECT:
+      driver->wlan_status = WLAN_STATUS_DISCONNECTED;
       // Inform the socket manager that the link layer is down
       cc3k_link_event(&driver->socket_manager, CC3K_LINK_DOWN);
       break;

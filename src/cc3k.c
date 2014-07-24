@@ -186,6 +186,7 @@ cc3k_status_t cc3k_wlan_connect(
   char *key,
   uint8_t key_length)
 {
+  cc3k_status_t res;
   cc3k_command_wlan_connect_t cmd;
   
   if(driver->state != CC3K_STATE_IDLE)
@@ -202,7 +203,10 @@ cc3k_status_t cc3k_wlan_connect(
   bzero(cmd.bssid, sizeof(cmd.bssid));
   memcpy(cmd.ssid, ssid, ssid_length);
   memcpy(cmd.key, key, key_length);
-  return cc3k_send_command(driver, CC3K_COMMAND_WLAN_CONNECT, (uint8_t *)&cmd, sizeof(cc3k_command_wlan_connect_t));
+  res = cc3k_send_command(driver, CC3K_COMMAND_WLAN_CONNECT, (uint8_t *)&cmd, sizeof(cc3k_command_wlan_connect_t));
+  if(res == CC3K_OK)
+    driver->wlan_status = WLAN_STATUS_CONNECTING; 
+  return res;
 }
 
 static cc3k_status_t cc3k_read_header(cc3k_t *driver)
@@ -227,8 +231,6 @@ cc3k_status_t cc3k_spi_done(cc3k_t *driver)
   // Called when an SPI transfer is complete
   // This could be from a DMA interrupt handler
   // Or a busy wait in the SPI transaction callback
-
-  driver->stats.spi_done++;
 
   driver->spi_busy = 0;
 
@@ -408,6 +410,7 @@ static cc3k_status_t _process_event(cc3k_t *driver)
   else
   {
     cc3k_recv_event_t *recv_event;
+    cc3k_wlan_connect_event_t *conn_event;
 
     // This event should be a response to the last sent command
     //if(event_header->opcode != driver->command)
@@ -431,7 +434,16 @@ static cc3k_status_t _process_event(cc3k_t *driver)
         cc3k_send_command(driver, CC3K_COMMAND_READ_BUFFER_SIZE, NULL, 0);
         break;
       case CC3K_COMMAND_READ_BUFFER_SIZE:
-        cc3k_wlan_connect(driver, CC3K_SEC_WPA2, SSID, strlen(SSID), KEY, strlen(KEY));
+        //cc3k_wlan_connect(driver, CC3K_SEC_WPA2, SSID, strlen(SSID), KEY, strlen(KEY));
+        break;
+      case CC3K_COMMAND_WLAN_CONNECT:
+        // This is a response to the wlan connect command
+        conn_event = (cc3k_wlan_connect_event_t *)payload;
+        if(conn_event->result < 0)
+        {
+          // Connect command failed
+          driver->wlan_status = WLAN_STATUS_DISCONNECTED;
+        } 
         break;
       case CC3K_COMMAND_RECV:
       case CC3K_COMMAND_RECVFROM:
@@ -476,11 +488,21 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
   {
     case CC3K_STATE_IDLE:
       // Check timer
+/*
       if( (time_ms - driver->last_update > 2000))
       {
         // Get status
         cc3k_send_command(driver, CC3K_COMMAND_IOCTL_STATUSGET, NULL, 0);
         driver->last_update = time_ms;
+      }
+*/
+
+      if(driver->wlan_status == WLAN_STATUS_DISCONNECTED)
+      {
+        if(cc3k_wlan_connect(driver, CC3K_SEC_WPA2, SSID, strlen(SSID), KEY, strlen(KEY)) == CC3K_OK)
+        {
+          driver->dhcp_complete = 0;
+        }
       }
 
       break;
@@ -494,14 +516,6 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
   if( (driver->wlan_status == WLAN_STATUS_CONNECTED) &&
       (driver->dhcp_complete == 1) )
     cc3k_socket_manager_loop(&driver->socket_manager, dt);
-
-  // Ugly temporary hack to reconnect. If we previously received DHCP but are now disconnected
-  if((driver->wlan_status == WLAN_STATUS_DISCONNECTED) &&
-    (driver->dhcp_complete == 1))
-  {
-    if(cc3k_wlan_connect(driver, CC3K_SEC_WPA2, SSID, strlen(SSID), KEY, strlen(KEY)) == CC3K_OK)
-      driver->dhcp_complete = 0;
-  }
 
   driver->last_state = driver->state;
 

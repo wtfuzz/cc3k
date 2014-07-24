@@ -11,8 +11,6 @@
 extern "C" {
 #endif
 
-typedef struct _cc3k_t cc3k_t;
-
 #include <cc3k_type.h>
 #include <cc3k_packet.h>
 #include <cc3k_command.h>
@@ -86,14 +84,15 @@ typedef struct _cc3k_config_t
 
 typedef struct _cc3k_stats_t
 {
+  /** @brief Number of times a wifi connection attempt has been made */
+  uint16_t wifi_connections;
+  /** @brief Total number of interrupt requests handled */
   uint32_t interrupts;
+  /** @brief Total number of unhandled interrupt requests (bad state) */
   uint32_t unhandled_interrupts;
-  uint32_t spi_done;
   uint32_t commands;
   uint32_t events;
   uint32_t unsolicited;
-  uint32_t socket_writes;
-  uint32_t socket_reads;
   uint32_t tx;
   uint32_t rx;
   uint32_t bytes_tx;
