@@ -11,13 +11,16 @@
 extern "C" {
 #endif
 
+#define CC3K_BUFFER_SIZE 1500+200
+#define CC3K_SSID_MAX 32
+#define CC3K_KEY_MAX 64
+
 #include <cc3k_type.h>
 #include <cc3k_packet.h>
 #include <cc3k_command.h>
 #include <cc3k_event.h>
 #include <cc3k_socket.h>
 
-#define CC3K_BUFFER_SIZE 1500+200
 
 /**
  * @brief Driver SPI protocol state
@@ -38,6 +41,17 @@ typedef enum _cc3k_state_t
   CC3K_STATE_DATA_RX_REQUEST,   // Receiving a data frame
   CC3K_STATE_DATA_RX,           // Receiving a data frame
 } cc3k_state_t;
+
+/**
+ * @brief Security type definitions
+ */
+typedef enum _cc3k_security_type_t
+{
+  CC3K_SEC_OPEN,
+  CC3K_SEC_WEP,
+  CC3K_SEC_WPA,
+  CC3K_SEC_WPA2
+} cc3k_security_type_t;
 
 typedef enum _cc3k_link_state_t
 {
@@ -163,9 +177,24 @@ struct _cc3k_t
 
   // TODO: This doesn't need to be 32 bit
   uint32_t wlan_status;
+
+  // For now, store the SSID and key in the driver structure. Switch to profiles or store information in user EEPROM
+  cc3k_security_type_t security_type;
+  char ssid[CC3K_SSID_MAX];
+  uint8_t ssid_length;
+  char key[CC3K_KEY_MAX];
+  uint8_t key_length;
 };
 
+/**
+ * @brief Initialize the driver
+ */
 cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config);
+
+/**
+ * @brief Set the wlan access point
+ */
+cc3k_status_t cc3k_set_network(cc3k_t *driver, cc3k_security_type_t security_type, char *ssid, uint8_t ssid_length, char *key, uint8_t key_length);
 
 /**
  * @brief SPI tranfer complete notification

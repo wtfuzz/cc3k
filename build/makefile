@@ -37,7 +37,7 @@ SRC_MAKEFILES := $(call rwildcard,$(SRC_PATH)/,build.mk)
 include $(SRC_MAKEFILES)
 
 # Compiler flags
-CFLAGS =  -g3 -gdwarf-2 -O0 -mcpu=cortex-m3 -mthumb 
+CFLAGS =  -g3 -gdwarf-2 -Os -mcpu=cortex-m3 -mthumb 
 CFLAGS += $(patsubst %,-I$(SRC_PATH)/%,$(INCLUDE_DIRS)) -I.
 CFLAGS += -ffunction-sections -Wall -Wno-switch -fmessage-length=0
 

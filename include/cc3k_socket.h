@@ -69,6 +69,9 @@ struct _cc3k_socket_t
   // TODO: Clean this up
   int bind;
 
+  /** @brief Socket data reception callback */
+  cc3k_data_callback_t *receive_callback;
+
 };
 
 /**
@@ -103,5 +106,10 @@ cc3k_status_t cc3k_socket_init(cc3k_socket_t *socket, cc3k_socket_type_t type);
 cc3k_status_t cc3k_socket_bind(cc3k_socket_t *socket, cc3k_sockaddr_t *sa);
 
 cc3k_status_t cc3k_socket_add(cc3k_t *driver, cc3k_socket_t *socket);
+
+/**
+ * @brief Handle a parsed data event from the CC3000
+ */
+cc3k_status_t cc3k_socket_data_event(cc3k_socket_manager_t *socket_manager, int32_t sd, uint8_t *data, uint32_t data_length);
 
 #endif

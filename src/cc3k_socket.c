@@ -156,7 +156,8 @@ cc3k_status_t cc3k_select_event(cc3k_socket_manager_t *socket_manager, cc3k_sele
   return CC3K_OK;
 }
 
-cc3k_status_t cc3k_recv_event(cc3k_socket_manager_t *socket_manager, int32_t sd, int32_t length)
+// This is called by the main driver event handler when data is received
+cc3k_status_t cc3k_socket_data_event(cc3k_socket_manager_t *socket_manager, int32_t sd, uint8_t *data, uint32_t data_length)
 {
   cc3k_socket_t *socket;
 
@@ -166,7 +167,11 @@ cc3k_status_t cc3k_recv_event(cc3k_socket_manager_t *socket_manager, int32_t sd,
   if(socket)
   {
     socket->rx++;
-    socket->rx_bytes += length;
+    socket->rx_bytes += data_length;
+
+    // If the socket has a reception callback set, call it
+    if(socket->receive_callback)
+      (socket->receive_callback)(socket, data, data_length);
   }
 
   return CC3K_OK;

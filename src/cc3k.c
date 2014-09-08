@@ -4,7 +4,7 @@
 #include <cc3k_data.h>
 #include <string.h>
 
-#include "../ap.h"
+//#include "../ap.h"
 
 #ifdef CC3K_DEBUG
 #include <stdio.h>
@@ -178,6 +178,21 @@ cc3k_status_t cc3k_init(cc3k_t *driver, cc3k_config_t *config)
 	return CC3K_OK;	
 }
 
+cc3k_status_t cc3k_set_network(cc3k_t *driver, cc3k_security_type_t security_type, char *ssid, uint8_t ssid_length, char *key, uint8_t key_length)
+{
+  driver->security_type = security_type;
+  memcpy(driver->ssid, ssid, ssid_length);
+  driver->ssid_length = ssid_length;
+  memcpy(driver->key, key, key_length);
+  driver->key_length = key_length;
+  return CC3K_OK;
+}
+
+cc3k_status_t cc3k_wlan_disconnect(cc3k_t *driver)
+{
+  return cc3k_send_command(driver, CC3K_COMMAND_WLAN_DISCONNECT, NULL, 0);
+}
+
 cc3k_status_t cc3k_wlan_connect(
   cc3k_t *driver,
   cc3k_security_type_t security_type,
@@ -347,6 +362,45 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
 	return CC3K_OK;
 }
 
+static cc3k_status_t _process_data(cc3k_t *driver, cc3k_data_header_t *data_header)
+{
+  cc3k_data_recvfrom_t *recvfrom_header;
+  uint32_t sd;
+  uint8_t *frame = NULL;
+  uint32_t frame_length;
+
+  if(driver->config->dataCallback)
+    (*driver->config->dataCallback)();
+
+  driver->stats.rx++;
+  driver->stats.bytes_rx += data_header->payload_length;
+
+#ifdef CC3K_DEBUG
+  fprintf(stderr, "Bytes %d\n", data_header->payload_length);
+  fprintf(stderr, "Received %d packets %d bytes\n", driver->stats.rx, driver->stats.bytes_rx);
+#endif
+
+  switch(data_header->opcode)
+  {
+    case CC3K_DATA_RECVFROM:
+      recvfrom_header = ((uint8_t *)data_header) + sizeof(cc3k_data_header_t);
+      sd = recvfrom_header->sd;
+      frame_length = recvfrom_header->payload_length;
+      frame = ((uint8_t *)recvfrom_header) + data_header->argument_length;
+      break;
+    case CC3K_DATA_RECV:
+      break;
+  }
+
+  if(frame != NULL)
+  {
+    // Pass the data to the socket manager
+    return cc3k_socket_data_event(&driver->socket_manager, sd, frame, frame_length);
+  }
+
+  return CC3K_OK;
+}
+
 static cc3k_status_t _process_event(cc3k_t *driver)
 {
   cc3k_command_header_t *event_header;
@@ -362,15 +416,8 @@ static cc3k_status_t _process_event(cc3k_t *driver)
   {
     cc3k_data_header_t *data_header;
     data_header = (cc3k_data_header_t *)event_header;
-
-    if(driver->config->dataCallback)
-      (*driver->config->dataCallback)();
-    driver->stats.rx++;
-    driver->stats.bytes_rx += data_header->payload_length;
-#ifdef CC3K_DEBUG
-    fprintf(stderr, "Bytes %d\n", data_header->payload_length);
-    fprintf(stderr, "Received %d packets %d bytes\n", driver->stats.rx, driver->stats.bytes_rx);
-#endif
+    _process_data(driver, data_header);
+    
     return CC3K_OK;
   }
 
@@ -433,9 +480,6 @@ static cc3k_status_t _process_event(cc3k_t *driver)
       case CC3K_COMMAND_NETAPP_SET_DEBUG:
         cc3k_send_command(driver, CC3K_COMMAND_READ_BUFFER_SIZE, NULL, 0);
         break;
-      case CC3K_COMMAND_READ_BUFFER_SIZE:
-        //cc3k_wlan_connect(driver, CC3K_SEC_WPA2, SSID, strlen(SSID), KEY, strlen(KEY));
-        break;
       case CC3K_COMMAND_WLAN_CONNECT:
         // This is a response to the wlan connect command
         conn_event = (cc3k_wlan_connect_event_t *)payload;
@@ -497,9 +541,10 @@ cc3k_status_t cc3k_loop(cc3k_t *driver, uint32_t time_ms)
       }
 */
 
-      if(driver->wlan_status == WLAN_STATUS_DISCONNECTED)
+      if(driver->wlan_status == WLAN_STATUS_DISCONNECTED && driver->ssid_length > 0)
       {
-        if(cc3k_wlan_connect(driver, CC3K_SEC_WPA2, SSID, strlen(SSID), KEY, strlen(KEY)) == CC3K_OK)
+        //if(cc3k_wlan_connect(driver, CC3K_SEC_WPA2, SSID, strlen(SSID), KEY, strlen(KEY)) == CC3K_OK)
+        if(cc3k_wlan_connect(driver, CC3K_SEC_WPA2, driver->ssid, driver->ssid_length, driver->key, driver->key_length) == CC3K_OK)
         {
           driver->dhcp_complete = 0;
         }
@@ -552,6 +597,7 @@ cc3k_status_t cc3k_connect(cc3k_t *driver, int sd, cc3k_sockaddr_t *sa)
 
   return cc3k_send_command(driver, CC3K_COMMAND_CONNECT, (uint8_t *)&cmd, sizeof(cc3k_command_connect_t));
 }
+
 
 cc3k_status_t cc3k_bind(cc3k_t *driver, int sd, cc3k_sockaddr_t *sa)
 {

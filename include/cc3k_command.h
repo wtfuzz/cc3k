@@ -70,19 +70,6 @@ typedef struct _cc3k_buffer_size_t
   uint16_t size;
 } cc3k_buffer_size_t;
 
-/**
- * @brief Security type definitions
- */
-typedef enum _cc3k_security_type_t
-{
-  CC3K_SEC_OPEN,
-  CC3K_SEC_WEP,
-  CC3K_SEC_WPA,
-  CC3K_SEC_WPA2
-} cc3k_security_type_t;
-
-#define CC3K_SSID_MAX 32
-#define CC3K_KEY_MAX 64
 
 /**
  * @brief Connect command header
@@ -150,5 +137,41 @@ typedef struct _cc3k_command_select_t
   uint32_t timeout_sec;
   uint32_t timeout_usec;
 } __attribute__ ((packed)) cc3k_command_select_t;
+
+typedef struct _cc3k_command_ioctl_set_scanparam_t
+{
+  uint32_t timeout_offset;
+  uint32_t interval;
+  uint32_t min_dwell_time;
+  uint32_t max_dwell_time;
+  uint32_t probe_requests;
+  uint32_t channel_mask;
+  int32_t rssi_threshold;
+  int32_t snr_threshold;
+  uint32_t tx_power;
+  uint32_t channel_timeout[16];
+} __attribute__ ((packed)) cc3k_command_ioctl_set_scanparam_t;
+
+typedef struct _cc3k_command_ioctl_set_conn_policy_t
+{
+  /** @brief Connect to open access points */
+  uint32_t open;
+  /** @brief Connect to the last successful access point */
+  uint32_t fast;
+  /** @brief Automatically connect to one of the 7 saved AP profiles */
+  uint32_t profiles;
+} __attribute__ ((packed)) cc3k_command_ioctl_set_conn_policy_t;
+
+typedef struct _cc3k_command_ioctl_add_profile_t
+{
+  uint32_t security_type;
+  uint32_t ssid_offset;
+  uint32_t ssid_length;
+  uint16_t zero;
+  uint8_t bssid[6];
+  uint32_t priority;
+  uint8_t ssid[CC3K_SSID_MAX];
+  uint8_t key[CC3K_KEY_MAX];
+} __attribute__ ((packed)) cc3k_command_ioctl_add_profile_t;
 
 #endif
