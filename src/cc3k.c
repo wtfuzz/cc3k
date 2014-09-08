@@ -365,6 +365,7 @@ cc3k_status_t cc3k_interrupt(cc3k_t *driver)
 static cc3k_status_t _process_data(cc3k_t *driver, cc3k_data_header_t *data_header)
 {
   cc3k_data_recvfrom_t *recvfrom_header;
+  cc3k_sockaddr_t *from = NULL;
   uint32_t sd;
   uint8_t *frame = NULL;
   uint32_t frame_length;
@@ -395,7 +396,7 @@ static cc3k_status_t _process_data(cc3k_t *driver, cc3k_data_header_t *data_head
   if(frame != NULL)
   {
     // Pass the data to the socket manager
-    return cc3k_socket_data_event(&driver->socket_manager, sd, frame, frame_length);
+    return cc3k_socket_data_event(&driver->socket_manager, sd, frame, frame_length, from);
   }
 
   return CC3K_OK;

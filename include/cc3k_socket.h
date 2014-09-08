@@ -24,7 +24,7 @@ typedef enum _cc3k_socket_type_t
 
 typedef struct _cc3k_socket_t cc3k_socket_t;
 
-typedef void (cc3k_data_callback_t)(cc3k_socket_t *socket, uint8_t *data, uint16_t length);
+typedef void (cc3k_data_callback_t)(cc3k_t *driver, cc3k_socket_t *socket, uint8_t *data, uint16_t length, cc3k_sockaddr_t *from);
 
 typedef enum _cc3k_socket_state_t
 {
@@ -110,6 +110,6 @@ cc3k_status_t cc3k_socket_add(cc3k_t *driver, cc3k_socket_t *socket);
 /**
  * @brief Handle a parsed data event from the CC3000
  */
-cc3k_status_t cc3k_socket_data_event(cc3k_socket_manager_t *socket_manager, int32_t sd, uint8_t *data, uint32_t data_length);
+cc3k_status_t cc3k_socket_data_event(cc3k_socket_manager_t *socket_manager, int32_t sd, uint8_t *data, uint32_t data_length, cc3k_sockaddr_t *from);
 
 #endif

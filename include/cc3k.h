@@ -241,6 +241,7 @@ cc3k_status_t cc3k_wlan_connect(cc3k_t *driver, cc3k_security_type_t security_ty
 cc3k_status_t cc3k_socket(cc3k_t *driver, int family, int type, int protocol);
 cc3k_status_t cc3k_connect(cc3k_t *driver, int sd, cc3k_sockaddr_t *sa);
 cc3k_status_t cc3k_recv(cc3k_t *driver, int sd, uint16_t length);
+cc3k_status_t cc3k_sendto(cc3k_t *driver, int sd, uint8_t *payload, uint16_t payload_length, cc3k_sockaddr_t *sa);
 
 #ifdef __cplusplus
 } // End of extern "C"
